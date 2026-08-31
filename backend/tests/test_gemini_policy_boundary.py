@@ -223,28 +223,33 @@ async def test_sequential_refusals_climb_ladder_to_escalation():
 
     refusal_intent = DebtorIntentClassification(intent="REFUSAL", confidence=0.90)
 
-    # Turn 1: Refuse at Tier 0 -> Offered Tier 1 (5%)
+    # Turn 1: Refuse at Tier 0 -> Offered Split Payment Plan (0% discount, SPLIT_OFFERED)
     d1 = await execute_policy_turn(invoice, refusal_intent, MockAsyncSession())
-    assert d1.resulting_state == State.TIER_1_DISCOUNT
-    assert d1.authorized_discount_rate == Decimal("0.0500")
+    assert d1.resulting_state == State.SPLIT_OFFERED
+    assert d1.authorized_discount_rate == Decimal("0.0")
+
+    # Turn 2: Refuse Split Plan -> Offered Tier 1 (5%)
+    d2 = await execute_policy_turn(invoice, refusal_intent, MockAsyncSession())
+    assert d2.resulting_state == State.TIER_1_DISCOUNT
+    assert d2.authorized_discount_rate == Decimal("0.0500")
     assert invoice.current_discount_tier == 1
 
-    # Turn 2: Refuse at Tier 1 -> Offered Tier 2 (8%)
-    d2 = await execute_policy_turn(invoice, refusal_intent, MockAsyncSession())
-    assert d2.resulting_state == State.TIER_2_DISCOUNT
-    assert d2.authorized_discount_rate == Decimal("0.0800")
+    # Turn 3: Refuse at Tier 1 -> Offered Tier 2 (8%)
+    d3 = await execute_policy_turn(invoice, refusal_intent, MockAsyncSession())
+    assert d3.resulting_state == State.TIER_2_DISCOUNT
+    assert d3.authorized_discount_rate == Decimal("0.0800")
     assert invoice.current_discount_tier == 2
 
-    # Turn 3: Refuse at Tier 2 -> Offered Tier 3 Floor (10%)
-    d3 = await execute_policy_turn(invoice, refusal_intent, MockAsyncSession())
-    assert d3.resulting_state == State.TIER_3_FLOOR
-    assert d3.authorized_discount_rate == Decimal("0.1000")
+    # Turn 4: Refuse at Tier 2 -> Offered Tier 3 Floor (10%)
+    d4 = await execute_policy_turn(invoice, refusal_intent, MockAsyncSession())
+    assert d4.resulting_state == State.TIER_3_FLOOR
+    assert d4.authorized_discount_rate == Decimal("0.1000")
     assert invoice.current_discount_tier == 3
 
-    # Turn 4: Refuse at Tier 3 Floor -> ESCALATED_HUMAN
-    d4 = await execute_policy_turn(invoice, refusal_intent, MockAsyncSession())
-    assert d4.resulting_state == State.ESCALATED_HUMAN
-    assert d4.trigger_auto_close is True
+    # Turn 5: Refuse at Tier 3 Floor -> ESCALATED_HUMAN
+    d5 = await execute_policy_turn(invoice, refusal_intent, MockAsyncSession())
+    assert d5.resulting_state == State.ESCALATED_HUMAN
+    assert d5.trigger_auto_close is True
     assert invoice.call_pending is False
 
 
@@ -339,13 +344,17 @@ async def test_technical_problem_offers_zero_discount():
 def test_relative_ptp_date_resolution():
     fixed_now = datetime(2026, 8, 31, 12, 0, 0, tzinfo=timezone.utc)  # Monday
 
-    # "Friday" -> Friday of current week (4 days ahead)
-    fri = parse_relative_ptp_date("Friday", fixed_now)
-    assert fri.weekday() == 4
+    # "Wednesday" -> 2 days ahead
+    wed = parse_relative_ptp_date("Wednesday", fixed_now)
+    assert wed.weekday() == 2
 
     # "kal" / "tomorrow" -> 1 day ahead
     kal = parse_relative_ptp_date("kal", fixed_now)
     assert (kal - fixed_now).days == 1
+
+    # "Friday" (4 days ahead) -> capped at maximum 3 days by policy
+    fri = parse_relative_ptp_date("Friday", fixed_now)
+    assert (fri - fixed_now).days == 3
 
     # "3 days" / "3 din" -> 3 days ahead
     d3 = parse_relative_ptp_date("3 din", fixed_now)

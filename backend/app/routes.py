@@ -72,6 +72,8 @@ from app.schemas import (
     ManualInvoiceCreate,
     OperatorOverrideRequest,
     AcknowledgeCallResponse,
+    RecordPaymentRequest,
+    RecordPaymentResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -1508,11 +1510,17 @@ async def operator_override(
         "FORCE_DISCOUNT": State.TIER_1_DISCOUNT,
         "FLAG_DISPUTE": State.FROZEN_DISPUTE,
         "MARK_SETTLED": State.RESOLVED,
+        "MARK_HALF_SETTLED": State.PTP_ACTIVE,
         "ESCALATE_HUMAN": State.ESCALATED_HUMAN,
     }
 
     target_state = override_state_map.get(payload.override_type, State.ESCALATED_HUMAN)
-    ptp_deadline = (datetime.now(timezone.utc) + timedelta(days=3)) if payload.override_type == "SIMULATE_PTP" else None
+    ptp_deadline = (datetime.now(timezone.utc) + timedelta(days=3)) if payload.override_type in ("SIMULATE_PTP", "MARK_HALF_SETTLED") else None
+
+    # If operator marked half settled, deduct 50% from amount_inr
+    if payload.override_type == "MARK_HALF_SETTLED":
+        inv.amount_inr = (Decimal(str(inv.amount_inr)) / Decimal("2")).quantize(Decimal("0.01"))
+        inv.ptp_date = ptp_deadline
 
     discount_offered = 0.0
     if payload.override_type == "FORCE_DISCOUNT":
@@ -1554,6 +1562,100 @@ async def operator_override(
 
     await db.commit()
     return await _get_invoice_or_404(inv.id, db)
+
+
+@router.post("/invoices/{invoice_id}/record-payment", response_model=RecordPaymentResponse, summary="Record partial (50%) or full (100%) payment settlement")
+async def record_payment_endpoint(
+    invoice_id: uuid.UUID = Path(...),
+    payload: RecordPaymentRequest = ...,
+    db: AsyncSession = Depends(get_db),
+) -> Any:
+    """
+    Record payment settlement:
+    - FULL: Marks invoice fully resolved (amount_inr = 0), status = 'RESOLVED', state = RESOLVED.
+    - HALF: Deducts 50% from amount_inr, schedules remaining 50% for PTP in 3 days, state = PTP_ACTIVE.
+    """
+    inv = await _get_invoice_or_404(invoice_id, db)
+    sm = StateMachine(inv, db)
+    prev_state = sm.current_state
+
+    original_amt = Decimal(str(inv.amount_inr))
+    now = datetime.now(timezone.utc)
+    notes = payload.notes or ""
+
+    if payload.payment_type == "FULL":
+        amount_paid = original_amt
+        remaining = Decimal("0.00")
+        target_state = State.RESOLVED
+        ptp_deadline = None
+        inv.amount_inr = remaining
+        inv.status = "RESOLVED"
+        inv.call_pending = False
+        inv.next_action_due_at = None
+
+        log_msg = f"[PAYMENT RECEIVED] Full settlement confirmed (100% - ₹{amount_paid:,.2f}). Invoice marked RESOLVED. {notes}".strip()
+        try:
+            await sm.transition(target_state=State.RESOLVED, log_message=log_msg)
+        except Exception:
+            evt = RecoveryEvent(
+                id=uuid.uuid4(),
+                invoice_id=inv.id,
+                current_state=State.RESOLVED,
+                discount_offered=0.0,
+                ptp_deadline=None,
+                log_message=log_msg,
+                timestamp=now,
+            )
+            db.add(evt)
+            sm._sync_invoice_status(State.RESOLVED)
+
+        msg = f"Full payment of ₹{amount_paid:,.2f} recorded. Case resolved."
+
+    else:
+        # HALF (50%) Payment
+        amount_paid = (original_amt / Decimal("2")).quantize(Decimal("0.01"))
+        remaining = (original_amt - amount_paid).quantize(Decimal("0.01"))
+        target_state = State.PTP_ACTIVE
+        ptp_deadline = now + timedelta(days=3)
+        inv.amount_inr = remaining
+        inv.status = "UNPAID"
+        inv.ptp_date = ptp_deadline
+        inv.call_pending = False
+        inv.next_action_due_at = ptp_deadline
+
+        log_msg = f"[PAYMENT RECEIVED] 50% Partial Payment Received (₹{amount_paid:,.2f}); 50% remaining (₹{remaining:,.2f}) due in 3 days ({ptp_deadline.strftime('%d %b %Y')}). {notes}".strip()
+        try:
+            await sm.transition(target_state=State.PTP_ACTIVE, ptp_deadline=ptp_deadline, log_message=log_msg)
+        except Exception:
+            evt = RecoveryEvent(
+                id=uuid.uuid4(),
+                invoice_id=inv.id,
+                current_state=State.PTP_ACTIVE,
+                discount_offered=0.0,
+                ptp_deadline=ptp_deadline,
+                log_message=log_msg,
+                timestamp=now,
+            )
+            db.add(evt)
+            sm._sync_invoice_status(State.PTP_ACTIVE)
+
+        msg = f"50% partial payment of ₹{amount_paid:,.2f} recorded. Remaining ₹{remaining:,.2f} scheduled for {ptp_deadline.strftime('%d %b %Y')}."
+
+    await db.commit()
+    updated_inv = await _get_invoice_or_404(inv.id, db)
+
+    return RecordPaymentResponse(
+        invoice_id=inv.id,
+        payment_type=payload.payment_type,
+        amount_paid_inr=amount_paid,
+        remaining_balance_inr=remaining,
+        previous_state=prev_state,
+        new_state=sm.current_state,
+        new_status=updated_inv.status,
+        ptp_deadline=ptp_deadline,
+        message=msg,
+        invoice=updated_inv,
+    )
 
 
 @router.post("/simulation/fast-forward", response_model=FastForwardResponse, summary="Fast forward autonomous agent simulation")

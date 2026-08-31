@@ -135,45 +135,50 @@ async def test_4_sequential_refusals_climb_ladder():
     invoice = make_test_invoice(merchant_cap=Decimal("0.1000"), amount_inr=Decimal("18500.00"))
     refusal = DebtorIntentClassification(intent="REFUSAL", confidence=0.90)
     
-    # Refusal #1 from initial state -> Tier 1 (5%)
+    # Refusal #1 from initial state -> SPLIT_OFFERED (0% discount, 50/50 split terms)
     d1 = await execute_policy_turn(invoice, refusal, MockAsyncSession())
-    assert d1.resulting_state == State.TIER_1_DISCOUNT
-    assert d1.authorized_discount_rate == Decimal("0.0500")
+    assert d1.resulting_state == State.SPLIT_OFFERED
+    assert d1.authorized_discount_rate == Decimal("0.0")
     
-    # Refusal #2 from Tier 1 -> Tier 2 (8%)
+    # Refusal #2 from SPLIT_OFFERED -> Tier 1 (5%)
     d2 = await execute_policy_turn(invoice, refusal, MockAsyncSession())
-    assert d2.resulting_state == State.TIER_2_DISCOUNT
-    assert d2.authorized_discount_rate == Decimal("0.0800")
+    assert d2.resulting_state == State.TIER_1_DISCOUNT
+    assert d2.authorized_discount_rate == Decimal("0.0500")
     
-    # Refusal #3 from Tier 2 -> Tier 3 Floor (10%)
+    # Refusal #3 from Tier 1 -> Tier 2 (8%)
     d3 = await execute_policy_turn(invoice, refusal, MockAsyncSession())
-    assert d3.resulting_state == State.TIER_3_FLOOR
-    assert d3.authorized_discount_rate == Decimal("0.1000")
+    assert d3.resulting_state == State.TIER_2_DISCOUNT
+    assert d3.authorized_discount_rate == Decimal("0.0800")
     
-    # Refusal #4 from Tier 3 Floor -> ESCALATED_HUMAN
+    # Refusal #4 from Tier 2 -> Tier 3 Floor (10%)
     d4 = await execute_policy_turn(invoice, refusal, MockAsyncSession())
-    assert d4.resulting_state == State.ESCALATED_HUMAN
-    assert d4.trigger_auto_close is True
+    assert d4.resulting_state == State.TIER_3_FLOOR
+    assert d4.authorized_discount_rate == Decimal("0.1000")
+    
+    # Refusal #5 from Tier 3 Floor -> ESCALATED_HUMAN
+    d5 = await execute_policy_turn(invoice, refusal, MockAsyncSession())
+    assert d5.resulting_state == State.ESCALATED_HUMAN
+    assert d5.trigger_auto_close is True
 
 
 # ── Test 5: Merchant cap 20% ──────────────────────────────────────────────────
 @pytest.mark.asyncio
 async def test_5_merchant_cap_20_percent():
     invoice = make_test_invoice(merchant_cap=Decimal("0.2000"), amount_inr=Decimal("10000.00"))
-    refusal = DebtorIntentClassification(intent="REFUSAL", confidence=0.90)
+    discount_req = DebtorIntentClassification(intent="REQUEST_DISCOUNT", customer_stated_discount_pct=50.0, confidence=0.90)
     
     # Tier 1 = 10%
-    d1 = await execute_policy_turn(invoice, refusal, MockAsyncSession())
+    d1 = await execute_policy_turn(invoice, discount_req, MockAsyncSession())
     assert d1.authorized_discount_rate == Decimal("0.1000")
     assert d1.authorized_net_amount == Decimal("9000.00")
     
     # Tier 2 = 16%
-    d2 = await execute_policy_turn(invoice, refusal, MockAsyncSession())
+    d2 = await execute_policy_turn(invoice, discount_req, MockAsyncSession())
     assert d2.authorized_discount_rate == Decimal("0.1600")
     assert d2.authorized_net_amount == Decimal("8400.00")
     
     # Tier 3 = 20%
-    d3 = await execute_policy_turn(invoice, refusal, MockAsyncSession())
+    d3 = await execute_policy_turn(invoice, discount_req, MockAsyncSession())
     assert d3.authorized_discount_rate == Decimal("0.2000")
     assert d3.authorized_net_amount == Decimal("8000.00")
 
@@ -182,18 +187,18 @@ async def test_5_merchant_cap_20_percent():
 @pytest.mark.asyncio
 async def test_6_merchant_cap_15_percent():
     invoice = make_test_invoice(merchant_cap=Decimal("0.1500"), amount_inr=Decimal("10000.00"))
-    refusal = DebtorIntentClassification(intent="REFUSAL", confidence=0.90)
+    discount_req = DebtorIntentClassification(intent="REQUEST_DISCOUNT", customer_stated_discount_pct=50.0, confidence=0.90)
     
     # Tier 1 = 7.5%
-    d1 = await execute_policy_turn(invoice, refusal, MockAsyncSession())
+    d1 = await execute_policy_turn(invoice, discount_req, MockAsyncSession())
     assert d1.authorized_discount_rate == Decimal("0.0750")
     
     # Tier 2 = 12.0%
-    d2 = await execute_policy_turn(invoice, refusal, MockAsyncSession())
+    d2 = await execute_policy_turn(invoice, discount_req, MockAsyncSession())
     assert d2.authorized_discount_rate == Decimal("0.1200")
     
     # Tier 3 = 15.0%
-    d3 = await execute_policy_turn(invoice, refusal, MockAsyncSession())
+    d3 = await execute_policy_turn(invoice, discount_req, MockAsyncSession())
     assert d3.authorized_discount_rate == Decimal("0.1500")
 
 

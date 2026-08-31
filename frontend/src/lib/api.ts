@@ -331,7 +331,31 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
+
+  recordPayment: (id: string, payload: RecordPaymentPayload) =>
+    apiFetch<RecordPaymentResponse>(`/api/invoices/${id}/record-payment`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
 };
+
+export interface RecordPaymentPayload {
+  payment_type: "HALF" | "FULL";
+  notes?: string;
+}
+
+export interface RecordPaymentResponse {
+  invoice_id: string;
+  payment_type: string;
+  amount_paid_inr: string;
+  remaining_balance_inr: string;
+  previous_state: string;
+  new_state: string;
+  new_status: string;
+  ptp_deadline: string | null;
+  message: string;
+  invoice: Invoice;
+}
 
 export interface AcknowledgeCallResponse {
   invoice_id: string;

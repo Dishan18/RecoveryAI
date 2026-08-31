@@ -52,6 +52,7 @@ class State:
     TRIGGERED        = "TRIGGERED"
     DIAGNOSED        = "DIAGNOSED"        # internal/legacy — logged inside REMINDER_SENT step
     REMINDER_SENT    = "REMINDER_SENT"    # autonomous reminder dispatched; 10m call timer starts
+    SPLIT_OFFERED    = "SPLIT_OFFERED"    # 50% now + 50% in 3 days offered upon initial refusal
     LINK_SENT        = "LINK_SENT"        # payment link sent AFTER customer PTP intent in call
     PTP_ACTIVE       = "PTP_ACTIVE"       # customer promised to pay; awaiting confirmation
     TIER_1_DISCOUNT  = "TIER_1_DISCOUNT"
@@ -63,7 +64,7 @@ class State:
 
     # States that can still accept action transitions
     ACTIVE_STATES = {
-        TRIGGERED, DIAGNOSED, REMINDER_SENT, LINK_SENT,
+        TRIGGERED, DIAGNOSED, REMINDER_SENT, SPLIT_OFFERED, LINK_SENT,
         PTP_ACTIVE, TIER_1_DISCOUNT, TIER_2_DISCOUNT, TIER_3_FLOOR,
     }
 
@@ -82,6 +83,7 @@ TRANSITION_MAP: dict[str, frozenset[str]] = {
     State.TRIGGERED: frozenset({
         State.REMINDER_SENT,
         State.DIAGNOSED,
+        State.SPLIT_OFFERED,
         State.PTP_ACTIVE,
         State.TIER_1_DISCOUNT,
         State.LINK_SENT,
@@ -89,25 +91,37 @@ TRANSITION_MAP: dict[str, frozenset[str]] = {
     }),
     State.DIAGNOSED: frozenset({
         State.REMINDER_SENT,
+        State.SPLIT_OFFERED,
         State.LINK_SENT,
         State.TIER_1_DISCOUNT,
         State.PTP_ACTIVE,
         State.ESCALATED_HUMAN,
     }),
     State.REMINDER_SENT: frozenset({
+        State.SPLIT_OFFERED,
         State.PTP_ACTIVE,
         State.LINK_SENT,
         State.TIER_1_DISCOUNT,
         State.ESCALATED_HUMAN,
     }),
+    State.SPLIT_OFFERED: frozenset({
+        State.RESOLVED,
+        State.PTP_ACTIVE,
+        State.LINK_SENT,
+        State.TIER_1_DISCOUNT,
+        State.ESCALATED_HUMAN,
+        State.FROZEN_DISPUTE,
+    }),
     State.LINK_SENT: frozenset({
         State.RESOLVED,
+        State.SPLIT_OFFERED,
         State.TIER_1_DISCOUNT,
         State.PTP_ACTIVE,
         State.ESCALATED_HUMAN,
     }),
     State.PTP_ACTIVE: frozenset({
         State.RESOLVED,
+        State.SPLIT_OFFERED,
         State.LINK_SENT,
         State.TIER_1_DISCOUNT,
         State.ESCALATED_HUMAN,
@@ -118,6 +132,7 @@ TRANSITION_MAP: dict[str, frozenset[str]] = {
         State.PTP_ACTIVE,
         State.ESCALATED_HUMAN,
         State.LINK_SENT,
+        State.SPLIT_OFFERED,
     }),
     State.TIER_2_DISCOUNT: frozenset({
         State.RESOLVED,

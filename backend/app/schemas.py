@@ -440,6 +440,24 @@ class OperatorOverrideRequest(BaseModel):
     reason: str = Field(..., min_length=3, max_length=500)
 
 
+class RecordPaymentRequest(BaseModel):
+    payment_type: Literal["HALF", "FULL"] = Field("FULL", description="HALF (50% payment + 3-day PTP) or FULL (100% resolution)")
+    notes: str | None = None
+
+
+class RecordPaymentResponse(BaseModel):
+    invoice_id: uuid.UUID
+    payment_type: str
+    amount_paid_inr: Decimal
+    remaining_balance_inr: Decimal
+    previous_state: str
+    new_state: str
+    new_status: str
+    ptp_deadline: datetime | None = None
+    message: str
+    invoice: InvoiceOut
+
+
 class SeedResponse(BaseModel):
     message: str
     invoices_created: int

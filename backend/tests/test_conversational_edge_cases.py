@@ -413,5 +413,101 @@ class TestLegacyFallbackPriority:
         assert discount_idx < atp_idx, f"REQUEST_DISCOUNT (idx={discount_idx}) must come before AGREED_TO_PAY (idx={atp_idx})"
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# SPLIT PAYMENT FLOW TESTS (MARGIN PRESERVATION)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestSplitPaymentFlow:
+    """Tests Margin-Preserving Split Offer upon initial refusal before discount ladder."""
+
+    def test_first_refusal_offers_split_plan(self):
+        import asyncio
+        import uuid
+        from datetime import datetime, timezone
+        from decimal import Decimal
+        from app.models import Merchant, Customer, Invoice, RecoveryEvent
+        from app.engine.state_machine import State
+        from app.engine.policy_wrapper import execute_policy_turn
+        from app.schemas import DebtorIntentClassification
+
+        class MockSession:
+            def add(self, obj): pass
+            async def flush(self): pass
+
+        m = Merchant(id=uuid.uuid4(), name="M", default_discount_cap=Decimal("0.10"), created_at=datetime.now(timezone.utc))
+        c = Customer(id=uuid.uuid4(), merchant_id=m.id, name="Test Cust", phone="+919876543210", ltv_inr=Decimal("10000"), consecutive_discount_months=0)
+        inv = Invoice(id=uuid.uuid4(), customer_id=c.id, merchant_id=m.id, amount_inr=Decimal("10000.00"), status="UNPAID", created_at=datetime.now(timezone.utc))
+        inv.merchant = m
+        inv.customer = c
+        inv.recovery_events = [
+            RecoveryEvent(id=uuid.uuid4(), invoice_id=inv.id, current_state=State.REMINDER_SENT, discount_offered=0.0, timestamp=datetime.now(timezone.utc))
+        ]
+
+        intent = DebtorIntentClassification(intent="REFUSAL", confidence=0.95, sentiment="HOSTILE")
+        decision = asyncio.run(execute_policy_turn(inv, intent, MockSession()))
+
+        # First refusal must offer SPLIT_OFFERED with 0% discount
+        assert decision.resulting_state == State.SPLIT_OFFERED
+        assert decision.authorized_discount_rate == Decimal("0.0")
+        assert "Split Payment Plan" in decision.action_executed
+
+    def test_second_refusal_advances_to_tier_1_discount(self):
+        import asyncio
+        import uuid
+        from datetime import datetime, timezone
+        from decimal import Decimal
+        from app.models import Merchant, Customer, Invoice, RecoveryEvent
+        from app.engine.state_machine import State
+        from app.engine.policy_wrapper import execute_policy_turn
+        from app.schemas import DebtorIntentClassification
+
+        class MockSession:
+            def add(self, obj): pass
+            async def flush(self): pass
+
+        m = Merchant(id=uuid.uuid4(), name="M", default_discount_cap=Decimal("0.10"), created_at=datetime.now(timezone.utc))
+        c = Customer(id=uuid.uuid4(), merchant_id=m.id, name="Test Cust", phone="+919876543210", ltv_inr=Decimal("10000"), consecutive_discount_months=0)
+        inv = Invoice(id=uuid.uuid4(), customer_id=c.id, merchant_id=m.id, amount_inr=Decimal("10000.00"), status="UNPAID", created_at=datetime.now(timezone.utc))
+        inv.merchant = m
+        inv.customer = c
+        inv.recovery_events = [
+            RecoveryEvent(id=uuid.uuid4(), invoice_id=inv.id, current_state=State.SPLIT_OFFERED, discount_offered=0.0, timestamp=datetime.now(timezone.utc))
+        ]
+
+        intent = DebtorIntentClassification(intent="REFUSAL", confidence=0.95, sentiment="HOSTILE")
+        decision = asyncio.run(execute_policy_turn(inv, intent, MockSession()))
+
+        # Second refusal after SPLIT_OFFERED must advance to TIER_1_DISCOUNT (5% on 10% cap)
+        assert decision.resulting_state == State.TIER_1_DISCOUNT
+        assert decision.authorized_discount_rate == Decimal("0.05")
+        assert decision.authorized_net_amount == Decimal("9500.00")
+
+    def test_split_offered_speech_format(self):
+        import asyncio
+        from app.engine.state_machine import State
+        from app.engine.gemini_service import generate_grounded_speech
+        from app.schemas import AgentTurnDecision
+        from decimal import Decimal
+
+        turn = AgentTurnDecision(
+            intent="REFUSAL",
+            confidence=0.95,
+            authorized_discount_rate=Decimal("0.0"),
+            authorized_net_amount=Decimal("10000.00"),
+            previous_state=State.REMINDER_SENT,
+            resulting_state=State.SPLIT_OFFERED,
+            new_invoice_status="UNPAID",
+            action_executed="Refused full payment -> Offered Split Payment Plan",
+            trigger_auto_close=False,
+        )
+        ctx = {"customer_name": "Aarav Sharma", "merchant_name": "DemoMerchant", "amount_inr": 10000.0}
+        speech = asyncio.run(generate_grounded_speech(ctx, turn))
+
+        assert "50%" in speech
+        assert "₹5,000" in speech
+        assert "3 dinon" in speech or "3 din" in speech
+        assert "[" not in speech and "]" not in speech  # sanitized
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "--tb=short"])

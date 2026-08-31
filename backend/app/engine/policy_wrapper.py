@@ -170,42 +170,72 @@ async def execute_policy_turn(
         )
 
     # ─────────────────────────────────────────────────────────────────────────
-    # 1. PAY_NOW — Customer indicates immediate payment
+    # 1. PAY_NOW / Split Plan Acceptance — Customer indicates immediate payment
     # ─────────────────────────────────────────────────────────────────────────
     if intent == "PAY_NOW":
-        # Gemini saying PAY_NOW is NOT proof of payment.
-        # Transition to LINK_SENT or retain state with link dispatch.
-        if sm.can_transition(State.LINK_SENT):
-            resulting_state = State.LINK_SENT
-            await sm.transition(
-                target_state=State.LINK_SENT,
-                discount_offered=float(authorized_discount_rate),
-                log_message="Debtor indicated immediate payment. Direct multi-rail payment link dispatched.",
-            )
-        action_executed = "Debtor indicated immediate payment. Multi-rail payment link dispatched."
-        trigger_auto_close = True
+        if previous_state == State.SPLIT_OFFERED:
+            target_ptp = datetime.now(timezone.utc) + timedelta(days=3)
+            resolved_ptp_date = target_ptp
+            invoice.ptp_date = target_ptp
+            half_amt = (gross_amount / Decimal("2")).quantize(Decimal("0.01"))
+            if sm.can_transition(State.PTP_ACTIVE):
+                resulting_state = State.PTP_ACTIVE
+                await sm.transition(
+                    target_state=State.PTP_ACTIVE,
+                    discount_offered=0.0,
+                    ptp_deadline=target_ptp,
+                    log_message=f"Debtor accepted Split Payment Plan. First 50% (₹{half_amt:,.0f}) due now, remaining 50% (₹{half_amt:,.0f}) committed by {target_ptp.strftime('%d %b %Y')}.",
+                )
+            action_executed = f"Debtor accepted Split Payment Plan (50% ₹{half_amt:,.0f} now, 50% in 3 days). Payment link dispatched."
+            trigger_auto_close = True
+        else:
+            if sm.can_transition(State.LINK_SENT):
+                resulting_state = State.LINK_SENT
+                await sm.transition(
+                    target_state=State.LINK_SENT,
+                    discount_offered=float(authorized_discount_rate),
+                    log_message="Debtor indicated immediate payment. Direct multi-rail payment link dispatched.",
+                )
+            action_executed = "Debtor indicated immediate payment. Multi-rail payment link dispatched."
+            trigger_auto_close = True
 
     # ─────────────────────────────────────────────────────────────────────────
     # 2. PROMISE_TO_PAY — Negotiate commitment date (MAX 3 DAYS ALLOWED)
     # ─────────────────────────────────────────────────────────────────────────
     elif intent == "PROMISE_TO_PAY":
-        target_ptp = parse_relative_ptp_date(intent_data.ptp_date_extracted)
-        # Strict clamp to maximum 3 days
-        max_allowed = datetime.now(timezone.utc) + timedelta(days=3)
-        target_ptp = min(target_ptp, max_allowed)
-        resolved_ptp_date = target_ptp
-        invoice.ptp_date = target_ptp
+        if previous_state == State.SPLIT_OFFERED:
+            target_ptp = datetime.now(timezone.utc) + timedelta(days=3)
+            resolved_ptp_date = target_ptp
+            invoice.ptp_date = target_ptp
+            half_amt = (gross_amount / Decimal("2")).quantize(Decimal("0.01"))
+            if sm.can_transition(State.PTP_ACTIVE):
+                resulting_state = State.PTP_ACTIVE
+                await sm.transition(
+                    target_state=State.PTP_ACTIVE,
+                    discount_offered=0.0,
+                    ptp_deadline=target_ptp,
+                    log_message=f"Debtor accepted Split Payment Plan. First 50% (₹{half_amt:,.0f}) due now, remaining 50% (₹{half_amt:,.0f}) committed by {target_ptp.strftime('%d %b %Y')}.",
+                )
+            action_executed = f"Debtor accepted Split Payment Plan (50% ₹{half_amt:,.0f} now, 50% in 3 days). Payment link dispatched."
+            trigger_auto_close = True
+        else:
+            target_ptp = parse_relative_ptp_date(intent_data.ptp_date_extracted)
+            # Strict clamp to maximum 3 days
+            max_allowed = datetime.now(timezone.utc) + timedelta(days=3)
+            target_ptp = min(target_ptp, max_allowed)
+            resolved_ptp_date = target_ptp
+            invoice.ptp_date = target_ptp
 
-        if sm.can_transition(State.PTP_ACTIVE):
-            resulting_state = State.PTP_ACTIVE
-            await sm.transition(
-                target_state=State.PTP_ACTIVE,
-                discount_offered=float(authorized_discount_rate),
-                ptp_deadline=target_ptp,
-                log_message=f"Debtor committed to settle on {target_ptp.strftime('%d %b %Y')} (3-day policy cap applied).",
-            )
-        action_executed = f"Promise to pay recorded until {target_ptp.strftime('%d %b %Y')} (3-day policy cap applied). Automated dunning paused."
-        trigger_auto_close = True
+            if sm.can_transition(State.PTP_ACTIVE):
+                resulting_state = State.PTP_ACTIVE
+                await sm.transition(
+                    target_state=State.PTP_ACTIVE,
+                    discount_offered=float(authorized_discount_rate),
+                    ptp_deadline=target_ptp,
+                    log_message=f"Debtor committed to settle on {target_ptp.strftime('%d %b %Y')} (3-day policy cap applied).",
+                )
+            action_executed = f"Promise to pay recorded until {target_ptp.strftime('%d %b %Y')} (3-day policy cap applied). Automated dunning paused."
+            trigger_auto_close = True
 
     # ─────────────────────────────────────────────────────────────────────────
     # 3. REQUEST_DISCOUNT — Customer asks for concession
@@ -240,11 +270,27 @@ async def execute_policy_turn(
             action_executed = f"Concession request blocked by Anti-Gaming Policy ({calc_res.audit_reason}). Net payable: ₹{gross_amount:,.0f}."
 
     # ─────────────────────────────────────────────────────────────────────────
-    # 4. REFUSAL — Negotiation refusal ladder
+    # 4. REFUSAL — Negotiation refusal ladder with Margin-Preserving Split Offer
     # ─────────────────────────────────────────────────────────────────────────
     elif intent == "REFUSAL":
-        if current_tier == 0:
-            # Refused initial payment -> Offer Tier 1
+        has_offered_split = (previous_state == State.SPLIT_OFFERED) or any(
+            e.current_state == State.SPLIT_OFFERED for e in invoice.recovery_events
+        )
+
+        if current_tier == 0 and not has_offered_split:
+            # ── 1st Refusal: Offer Split Payment Plan (50% now, 50% in 3 days) ───
+            half_amt = (gross_amount / Decimal("2")).quantize(Decimal("0.01"))
+            resulting_state = State.SPLIT_OFFERED
+            if sm.can_transition(State.SPLIT_OFFERED):
+                await sm.transition(
+                    target_state=State.SPLIT_OFFERED,
+                    discount_offered=0.0,
+                    log_message=f"Refusal at full amount -> Offered Split Payment Plan (50% ₹{half_amt:,.0f} immediate, 50% ₹{half_amt:,.0f} in 3 days) to preserve margin.",
+                )
+            action_executed = f"Refused full payment -> Offered Split Payment Plan (50% ₹{half_amt:,.0f} immediate, 50% in 3 days) to preserve margin."
+
+        elif current_tier == 0 and has_offered_split:
+            # ── 2nd Refusal (Rejected Split): Proceed to Tier 1 Discount ─────────
             calc_res = calculator.calculate(merchant_cap, consecutive_months, 1, gross_amount)
             if calc_res.is_accessible and sm.can_transition(State.TIER_1_DISCOUNT):
                 authorized_discount_rate = calc_res.discount_rate
@@ -253,9 +299,9 @@ async def execute_policy_turn(
                 await sm.transition(
                     target_state=State.TIER_1_DISCOUNT,
                     discount_offered=float(authorized_discount_rate),
-                    log_message=f"Refusal at Tier 0 -> Offered Tier 1 ({calc_res.discount_pct})",
+                    log_message=f"Refusal of Split Payment Plan -> Offered Tier 1 ({calc_res.discount_pct})",
                 )
-                action_executed = f"Refused full payment -> Offered Tier 1 concession ({calc_res.discount_pct})."
+                action_executed = f"Refused split payment plan -> Offered Tier 1 concession ({calc_res.discount_pct})."
             else:
                 resulting_state = State.ESCALATED_HUMAN
                 invoice.call_pending = False

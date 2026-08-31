@@ -438,56 +438,92 @@ export default function OperationsConsole() {
     }
   };
 
-  // Optimistic Payment Received Handler (0ms visual feedback with persistent settled lock)
-  const handlePaymentReceivedOptimistic = async (inv: Invoice) => {
+  // Optimistic Payment Received Handler (0ms visual feedback with Half / Full 1-click actions)
+  const handlePaymentReceivedOptimistic = async (inv: Invoice, paymentType: "HALF" | "FULL" = "FULL") => {
     setPaymentSubmittingId(inv.id);
     setPaymentConfirmId(null);
-    setSettledInvoiceIds((prev) => new Set(prev).add(inv.id));
     const previousInvoices = invoices;
+    const grossVal = parseFloat(inv.amount_inr) || 0;
 
-    // Instantly mark resolved locally
-    setInvoices((prev) =>
-      prev.map((item) =>
-        item.id === inv.id
-          ? {
-              ...item,
-              status: "RESOLVED",
-              next_action_due_at: null,
-              call_pending: false,
-              recovery_events: [
-                ...(item.recovery_events || []),
-                {
-                  id: "optimistic-" + Date.now(),
-                  invoice_id: item.id,
-                  current_state: "RESOLVED",
-                  discount_offered: item.recovery_events?.[item.recovery_events.length - 1]?.discount_offered || "0.0",
-                  ptp_deadline: null,
-                  log_message: "[OPERATOR OVERRIDE] Type: MARK_SETTLED | Rationale: Operator confirmed payment received",
-                  timestamp: new Date().toISOString(),
-                } as RecoveryEvent,
-              ],
-            }
-          : item
-      )
-    );
-    showToast(`Payment received & settled for ${inv.customer.name}`);
+    if (paymentType === "FULL") {
+      setSettledInvoiceIds((prev) => new Set(prev).add(inv.id));
+      // Instantly mark resolved locally
+      setInvoices((prev) =>
+        prev.map((item) =>
+          item.id === inv.id
+            ? {
+                ...item,
+                amount_inr: "0.00",
+                status: "RESOLVED",
+                next_action_due_at: null,
+                call_pending: false,
+                recovery_events: [
+                  ...(item.recovery_events || []),
+                  {
+                    id: "optimistic-" + Date.now(),
+                    invoice_id: item.id,
+                    current_state: "RESOLVED",
+                    discount_offered: item.recovery_events?.[item.recovery_events.length - 1]?.discount_offered || "0.0",
+                    ptp_deadline: null,
+                    log_message: "[PAYMENT RECEIVED] Full settlement confirmed (100%). Invoice marked RESOLVED.",
+                    timestamp: new Date().toISOString(),
+                  } as RecoveryEvent,
+                ],
+              }
+            : item
+        )
+      );
+      showToast(`Full payment (100%) received & settled for ${inv.customer.name}`);
+    } else {
+      const halfVal = (grossVal / 2).toFixed(2);
+      const ptpDate = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
+      // Instantly update remaining amount & PTP
+      setInvoices((prev) =>
+        prev.map((item) =>
+          item.id === inv.id
+            ? {
+                ...item,
+                amount_inr: halfVal,
+                status: "UNPAID",
+                next_action_due_at: ptpDate,
+                call_pending: false,
+                recovery_events: [
+                  ...(item.recovery_events || []),
+                  {
+                    id: "optimistic-" + Date.now(),
+                    invoice_id: item.id,
+                    current_state: "PTP_ACTIVE",
+                    discount_offered: item.recovery_events?.[item.recovery_events.length - 1]?.discount_offered || "0.0",
+                    ptp_deadline: ptpDate,
+                    log_message: `[PAYMENT RECEIVED] 50% Partial Payment Received (₹${halfVal}); remaining 50% due in 3 days.`,
+                    timestamp: new Date().toISOString(),
+                  } as RecoveryEvent,
+                ],
+              }
+            : item
+        )
+      );
+      showToast(`50% payment received for ${inv.customer.name}; remaining ₹${halfVal} due in 3 days`);
+    }
 
     try {
-      const updatedInv = await api.operatorOverride(inv.id, {
-        override_type: "MARK_SETTLED",
-        reason: "Operator confirmed payment received",
+      const res = await api.recordPayment(inv.id, {
+        payment_type: paymentType,
+        notes: `Operator 1-click ${paymentType} settlement`,
       });
       // Replace with authoritative server invoice
       setInvoices((prev) =>
-        prev.map((item) => (item.id === inv.id ? { ...updatedInv, status: "RESOLVED", next_action_due_at: null, call_pending: false } : item))
+        prev.map((item) => (item.id === inv.id ? res.invoice : item))
       );
       api.analyticsSummary().then(setAnalytics).catch(console.warn);
     } catch (e: unknown) {
-      setSettledInvoiceIds((prev) => {
-        const next = new Set(prev);
-        next.delete(inv.id);
-        return next;
-      });
+      if (paymentType === "FULL") {
+        setSettledInvoiceIds((prev) => {
+          const next = new Set(prev);
+          next.delete(inv.id);
+          return next;
+        });
+      }
       setInvoices(previousInvoices);
       showToast("Error: " + (e instanceof Error ? e.message : "Failed to record payment"));
     } finally {
@@ -1058,28 +1094,36 @@ export default function OperationsConsole() {
                           </span>
                         ) : inv.status === "UNPAID" ? (
                           paymentConfirmId === inv.id ? (
-                            <div className="flex items-center gap-1.5 bg-rose-50 border border-rose-300 rounded px-2 py-0.5 animate-in fade-in zoom-in-95">
-                              <span className="text-[11px] font-medium text-rose-800">Confirm payment?</span>
+                            <div className="flex items-center gap-1.5 animate-in fade-in zoom-in-95">
                               <button
-                                onClick={() => handlePaymentReceivedOptimistic(inv)}
+                                onClick={() => handlePaymentReceivedOptimistic(inv, "HALF")}
                                 disabled={paymentSubmittingId === inv.id}
-                                className="px-2 py-0.5 text-[11px] font-bold text-white bg-rose-600 hover:bg-rose-700 rounded shadow-xs transition-colors disabled:opacity-50"
+                                className="bg-amber-500 hover:bg-amber-600 text-white font-medium px-2.5 py-1 rounded text-xs transition-colors shadow-xs flex items-center gap-1 disabled:opacity-50"
+                                title="Settle 50% immediate, 50% in 3 days"
                               >
-                                {paymentSubmittingId === inv.id ? "Saving..." : "Confirm"}
+                                <span>⚡ Half (50%)</span>
+                              </button>
+                              <button
+                                onClick={() => handlePaymentReceivedOptimistic(inv, "FULL")}
+                                disabled={paymentSubmittingId === inv.id}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-2.5 py-1 rounded text-xs transition-colors shadow-xs flex items-center gap-1 disabled:opacity-50"
+                                title="Settle 100% full payment"
+                              >
+                                <span>✓ Full (100%)</span>
                               </button>
                               <button
                                 onClick={() => setPaymentConfirmId(null)}
-                                className="px-1.5 py-0.5 text-[11px] text-zinc-500 hover:text-zinc-800 rounded transition-colors"
+                                className="px-1.5 py-1 text-xs text-zinc-400 hover:text-zinc-700 rounded transition-colors"
                                 title="Cancel"
                               >
-                                Cancel
+                                ✕
                               </button>
                             </div>
                           ) : (
                             <button
                               onClick={() => setPaymentConfirmId(inv.id)}
                               className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-300 hover:bg-rose-100 hover:border-rose-400 rounded transition-colors whitespace-nowrap"
-                              title="Click to record payment received"
+                              title="Click to record payment"
                             >
                               <span>Payment Received</span>
                             </button>

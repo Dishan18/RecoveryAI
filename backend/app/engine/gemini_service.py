@@ -935,7 +935,17 @@ async def generate_grounded_speech(
             "team iski jaanch karegi aur collection call abhi ke liye rok di gayi hai."
         )
 
-    # 3. Promise to Pay Invariant
+    # 3. Split Payment Plan Offer Invariant (Margin Preservation)
+    if state == "SPLIT_OFFERED":
+        gross_val = float(invoice_context.get("amount_inr", 0))
+        half_val = gross_val / 2.0
+        return _sanitize_speech_output(
+            f"Main samajh sakta hoon. Agar poora payment abhi sambhav nahi hai, toh kya aap abhi 50% (₹{half_val:,.0f}) "
+            f"1 ghante ke andar clear kar sakte hain, aur baaki 50% (₹{half_val:,.0f}) agle 3 dinon mein? "
+            "Isse aapka account bina kisi penalty ke regularize ho jayega."
+        )
+
+    # 4. Promise to Pay Invariant
     if state == "PTP_ACTIVE":
         ptp_str = turn_decision.ptp_date.strftime("%d %B %Y") if turn_decision.ptp_date else "the agreed date"
         if "3-day policy cap applied" in turn_decision.action_executed or "maximum 3 days" in turn_decision.action_executed:
