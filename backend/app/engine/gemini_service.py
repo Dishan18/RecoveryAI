@@ -592,6 +592,11 @@ If debtor asks for payment link or QR code → "REQUEST_PAYMENT_LINK"
 CRITICAL: If a sentence contains BOTH discount keywords AND payment/pay words (e.g. "मुझे फिफ्टी परसेंट डिस्काउंट चाहिए नहीं तो मैं यह पेमेंट नहीं कर पाऊंगा"), classify as REQUEST_DISCOUNT, NOT PAY_NOW.
 
 FEW-SHOT EXAMPLES:
+- "हाँ, मैं यह कर सकता हूँ" → {{"intent":"PAY_NOW"}}
+- "ओके, मैं यह पेमेंट कर दूंगा" → {{"intent":"PAY_NOW"}}
+- "Theek hai main 50% abhi pay kar deta hoon" → {{"intent":"PAY_NOW"}}
+- "Haan chalega, main kar deta hoon" → {{"intent":"PAY_NOW"}}
+- "Yes, I can do this" → {{"intent":"PAY_NOW"}}
 - "मुझे फिफ्टी परसेंट डिस्काउंट चाहिए नहीं तो मैं यह पेमेंट नहीं कर पाऊंगा" → {{"intent":"REQUEST_DISCOUNT","customer_stated_discount_pct":50.0}}
 - "गलत बिल भेजा है आपने, मैं पैसे नहीं दूंगा" → {{"intent":"DISPUTE","dispute_reason":"Wrong bill sent"}}
 - "5 din baad salary aane par dunga" → {{"intent":"PROMISE_TO_PAY","ptp_date_extracted":"5 din"}}
@@ -776,15 +781,46 @@ def _rule_based_fallback_classification(transcript: str) -> dict:
             "sentiment": "COOPERATIVE",
         }
 
-    # ── PRIORITY 6: PAY_NOW — Only if affirmative AND no negation present ────
+    # ── PRIORITY 6: REQUEST_PAYMENT_LINK ─────────────────────────────────────
+    if any(w in raw for w in [
+        "link bhejo", "payment link", "send link", "qr code", "qr", "लिंक भेजो",
+        "bhejo link", "link send karo", "send the link",
+    ]):
+        return {
+            "intent": "REQUEST_PAYMENT_LINK",
+            "confidence": 0.95,
+            "customer_stated_discount_pct": None,
+            "ptp_date_extracted": None,
+            "dispute_reason": None,
+            "sentiment": "COOPERATIVE",
+        }
+
+    # ── PRIORITY 7: PAY_NOW — Only if affirmative AND no negation present ────
     has_negation = any(neg in raw for neg in _NEGATION_TOKENS)
     pay_now_phrases = [
+        # Multi-word English / Latin Hinglish
         "pay now", "abhi payment kar", "abhi kar deta", "turant pay",
         "clearing now", "abhi kar dunga", "main pay kar raha",
         "karta hoon", "kar deta hoon", "settle now", "ready to pay",
-        "abhi pay", "अभी पे", "abhi pe",
+        "abhi pay", "i will pay", "i can pay", "i can do this", "i can do that",
+        "i agree", "agreed", "sounds good", "theek hai", "thik hai",
+        "chalega", "manzoor", "kar dunga", "kar deta hu",
+        "kar sakta hoon", "kar sakta hu", "kar sakte hain", "kar denge", "de dunga",
+        "haan main", "yes i can", "i will settle", "settle kar dunga", "payment kar dunga",
+        "main kar dunga", "mai kar dunga", "main kar deta", "main yeh kar", "mai yeh kar",
+        "yeh kar sakta", "ye kar sakta", "yeh kar dunga", "ye kar dunga",
+        # Devanagari Hindi
+        "अभी पे", "abhi pe", "हाँ", "हां", "हूँ", "हूं",
+        "कर सकता हूँ", "कर सकता हूं", "कर सकता", "कर सकते हैं",
+        "कर दूंगा", "कर दूँगा", "कर देता हूँ", "कर देता हूं", "करूँगा", "करूंगा",
+        "यह कर सकता", "ये कर सकता", "यह पेमेंट", "ये पेमेंट", "पेमेंट कर दूंगा", "पेमेंट कर दूँगा",
+        "ओके", "ठीक है", "सही है", "मंज़ूर है", "मंजूर है", "चलेगा", "डन", "सहमत",
+        "पे करता हूँ", "पे कर दूंगा", "पे कर दूँगा", "दे दूंगा", "दे दूँगा", "सेटल कर दूंगा", "सेटल कर दूँगा",
     ]
-    if not has_negation and any(w in raw for w in pay_now_phrases):
+
+    has_standalone_affirmation = bool(re.search(r"\b(ha|haan|ok|okay|yes|done|sure|agree)\b", raw))
+
+    if not has_negation and (has_standalone_affirmation or any(w in raw for w in pay_now_phrases)):
         return {
             "intent": "PAY_NOW",
             "confidence": 0.95,
@@ -794,14 +830,10 @@ def _rule_based_fallback_classification(transcript: str) -> dict:
             "sentiment": "COOPERATIVE",
         }
 
-    # ── PRIORITY 7: REQUEST_PAYMENT_LINK ─────────────────────────────────────
-    if any(w in raw for w in [
-        "link bhejo", "payment link", "send link", "qr code", "qr", "लिंक",
-        "link", "लिंक भेजो",
-    ]):
+    if any(w in raw for w in ["link", "लिंक"]):
         return {
             "intent": "REQUEST_PAYMENT_LINK",
-            "confidence": 0.95,
+            "confidence": 0.90,
             "customer_stated_discount_pct": None,
             "ptp_date_extracted": None,
             "dispute_reason": None,
@@ -945,9 +977,15 @@ async def generate_grounded_speech(
             "Isse aapka account bina kisi penalty ke regularize ho jayega."
         )
 
-    # 4. Promise to Pay Invariant
+    # 4. Promise to Pay / Split Plan Acceptance Invariant
     if state == "PTP_ACTIVE":
         ptp_str = turn_decision.ptp_date.strftime("%d %B %Y") if turn_decision.ptp_date else "the agreed date"
+        if "Split Payment Plan" in turn_decision.action_executed or "50%" in turn_decision.action_executed:
+            return _sanitize_speech_output(
+                f"Bahut shukriya! Maine aapka split payment plan confirm kar diya hai. "
+                f"Pehle 50% ka payment link SMS aur WhatsApp par bhej diya gaya hai jo aap agle 1 ghante mein clear kar sakte hain, "
+                f"aur baaki 50% {ptp_str} tak scheduled hai. Dhanyawad!"
+            )
         if "3-day policy cap applied" in turn_decision.action_executed or "maximum 3 days" in turn_decision.action_executed:
             return _sanitize_speech_output(
                 f"Humari policy ke mutabik maximum 3 din ka commitment allow hai. Maine {ptp_str} tak aapka "

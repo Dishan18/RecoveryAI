@@ -508,6 +508,57 @@ class TestSplitPaymentFlow:
         assert "3 dinon" in speech or "3 din" in speech
         assert "[" not in speech and "]" not in speech  # sanitized
 
+    def test_affirmative_acceptance_hindi_transcripts(self):
+        import asyncio
+        from app.engine.gemini_service import classify_debtor_intent
+
+        # User's exact screenshot transcripts:
+        res1 = asyncio.run(classify_debtor_intent("हाँ, मैं यह कर सकता हूँ"))
+        assert res1.intent == "PAY_NOW"
+
+        res2 = asyncio.run(classify_debtor_intent("ओके, मैं यह पेमेंट कर दूंगा"))
+        assert res2.intent == "PAY_NOW"
+
+        res3 = asyncio.run(classify_debtor_intent("theek hai main payment kar deta hoon"))
+        assert res3.intent == "PAY_NOW"
+
+    def test_split_plan_acceptance_transitions_to_ptp_active(self):
+        import asyncio
+        import uuid
+        from datetime import datetime, timezone
+        from decimal import Decimal
+        from app.models import Merchant, Customer, Invoice, RecoveryEvent
+        from app.engine.state_machine import State
+        from app.engine.policy_wrapper import execute_policy_turn
+        from app.engine.gemini_service import generate_grounded_speech
+        from app.schemas import DebtorIntentClassification
+
+        class MockSession:
+            def add(self, obj): pass
+            async def flush(self): pass
+
+        m = Merchant(id=uuid.uuid4(), name="M", default_discount_cap=Decimal("0.10"), created_at=datetime.now(timezone.utc))
+        c = Customer(id=uuid.uuid4(), merchant_id=m.id, name="Test Cust", phone="+919876543210", ltv_inr=Decimal("10000"), consecutive_discount_months=0)
+        inv = Invoice(id=uuid.uuid4(), customer_id=c.id, merchant_id=m.id, amount_inr=Decimal("12000.00"), status="UNPAID", created_at=datetime.now(timezone.utc))
+        inv.merchant = m
+        inv.customer = c
+        inv.recovery_events = [
+            RecoveryEvent(id=uuid.uuid4(), invoice_id=inv.id, current_state=State.SPLIT_OFFERED, discount_offered=0.0, timestamp=datetime.now(timezone.utc))
+        ]
+
+        intent = DebtorIntentClassification(intent="PAY_NOW", confidence=0.95, sentiment="COOPERATIVE")
+        decision = asyncio.run(execute_policy_turn(inv, intent, MockSession()))
+
+        assert decision.resulting_state == State.PTP_ACTIVE
+        assert decision.authorized_discount_rate == Decimal("0.0")
+        assert "Split Payment Plan" in decision.action_executed
+        assert decision.trigger_auto_close is True
+
+        ctx = {"customer_name": "Vikram Malhotra", "merchant_name": "DemoMerchant", "amount_inr": 12000.0}
+        speech = asyncio.run(generate_grounded_speech(ctx, decision))
+        assert "split payment plan" in speech.lower()
+        assert "50%" in speech
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "--tb=short"])
