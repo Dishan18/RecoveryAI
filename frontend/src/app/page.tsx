@@ -758,15 +758,28 @@ export default function OperationsConsole() {
                 {callQueue.length === 0 ? (
                   <div className="text-zinc-400 text-[11px]">0 calls waiting in queue.</div>
                 ) : (
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between text-blue-900 font-semibold bg-blue-50/80 px-2 py-1 rounded">
-                      <span className="truncate">Active: {callQueue[0]?.customer.name}</span>
-                      <span className="font-mono text-[11px]">{fmtInr(callQueue[0]?.amount_inr || 0)}</span>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-blue-900 font-semibold bg-blue-50/80 px-2.5 py-1.5 rounded border border-blue-100">
+                      <div className="flex items-center gap-2 truncate">
+                        <span className="truncate">Active: {callQueue[0]?.customer.name}</span>
+                        <span className="font-mono text-[11px] text-blue-700">{fmtInr(callQueue[0]?.amount_inr || 0)}</span>
+                      </div>
+                      <button
+                        onClick={() => setVoiceCallInvoice(callQueue[0])}
+                        className="px-2 py-0.5 text-[11px] font-bold text-white bg-blue-600 hover:bg-blue-700 rounded transition-colors flex items-center gap-1 shrink-0 ml-2"
+                      >
+                        <PhoneCall size={10} /> Call
+                      </button>
                     </div>
                     {callQueue.slice(1, 3).map((q, idx) => (
                       <div key={q.id} className="flex items-center justify-between text-zinc-600 px-2 text-[11px]">
                         <span>#{idx + 2} {q.customer.name}</span>
-                        <span className="text-zinc-400 font-mono">{fmtInr(q.amount_inr)}</span>
+                        <button
+                          onClick={() => setVoiceCallInvoice(q)}
+                          className="text-[11px] font-semibold text-blue-600 hover:underline flex items-center gap-1"
+                        >
+                          Start Call →
+                        </button>
                       </div>
                     ))}
                     {callQueue.length > 3 && (
@@ -1028,12 +1041,13 @@ export default function OperationsConsole() {
 
                       {/* Actions Column: Resolve Button + Override Dropdown + Expand Chevron */}
                       <div className="flex items-center space-x-2 relative">
-                        {isCalling && (
+                        {(inv.call_pending || isInQueue || isCalling) && (
                           <button
                             onClick={() => setVoiceCallInvoice(inv)}
-                            className="px-2.5 py-1 text-xs font-semibold bg-blue-600 text-white rounded hover:bg-blue-700"
+                            className="px-2.5 py-1 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded flex items-center gap-1 shadow-xs transition-colors"
                           >
-                            Inspect Call
+                            <PhoneCall size={11} />
+                            {isCalling ? "Inspect Call" : "Start Call"}
                           </button>
                         )}
 
