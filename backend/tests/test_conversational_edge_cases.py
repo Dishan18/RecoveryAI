@@ -641,6 +641,54 @@ class TestSplitPaymentFlow:
         speech4 = asyncio.run(generate_grounded_speech(ctx, dec4))
         assert "senior financial officer" in speech4.lower()
 
+    def test_choosing_split_on_full_amount_from_discount_tier(self):
+        import asyncio
+        import uuid
+        from datetime import datetime, timezone
+        from decimal import Decimal
+        from app.models import Merchant, Customer, Invoice, RecoveryEvent
+        from app.engine.state_machine import State
+        from app.engine.policy_wrapper import execute_policy_turn
+        from app.engine.gemini_service import generate_grounded_speech, _rule_based_fallback_classification
+        from app.schemas import DebtorIntentClassification
+
+        class MockSession:
+            def add(self, obj): pass
+            async def flush(self): pass
+
+        # Test fallback classification for Hindi split acceptance
+        fb1 = _rule_based_fallback_classification("मैं स्प्लिट करना चाहूँगा")
+        assert fb1["intent"] == "PAY_NOW"
+
+        fb2 = _rule_based_fallback_classification("मैं ओरिजिनल अमाउंट का स्प्लिट पेमेंट करना चाहूँगा")
+        assert fb2["intent"] == "PAY_NOW"
+
+        m = Merchant(id=uuid.uuid4(), name="M", default_discount_cap=Decimal("0.10"), created_at=datetime.now(timezone.utc))
+        c = Customer(id=uuid.uuid4(), merchant_id=m.id, name="Test Cust", phone="+919876543210", ltv_inr=Decimal("100000"), consecutive_discount_months=0)
+        inv = Invoice(id=uuid.uuid4(), customer_id=c.id, merchant_id=m.id, amount_inr=Decimal("17575.00"), status="UNPAID", created_at=datetime.now(timezone.utc))
+        inv.merchant = m
+        inv.customer = c
+        inv.recovery_events = [
+            RecoveryEvent(id=uuid.uuid4(), invoice_id=inv.id, current_state=State.TIER_1_DISCOUNT, discount_offered=0.05, log_message="Discounted payment is not available for split payments", timestamp=datetime.now(timezone.utc))
+        ]
+
+        intent = DebtorIntentClassification(
+            intent="PAY_NOW",
+            confidence=0.95,
+            sentiment="COOPERATIVE",
+            raw_transcript="मैं स्प्लिट करना चाहूँगा",
+            is_split_requested=True,
+        )
+        dec = asyncio.run(execute_policy_turn(inv, intent, MockSession()))
+        assert dec.resulting_state == State.SPLIT_FIRST_HALF_PENDING
+        assert dec.authorized_discount_rate == Decimal("0.0")
+        assert "Split Payment Plan on full amount" in dec.action_executed
+
+        ctx = {"customer_name": "Rohan", "merchant_name": "DemoMerchant", "amount_inr": 17575.0}
+        speech = asyncio.run(generate_grounded_speech(ctx, dec))
+        assert "split payment plan" in speech.lower()
+        assert "50%" in speech
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "--tb=short"])

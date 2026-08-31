@@ -633,12 +633,15 @@ def _has_negation(raw: str) -> bool:
     # Word boundary regex for Latin negation tokens to avoid false positives (e.g. 'now' matching 'no')
     if re.search(r"\b(no|not|cannot|can't|cant|can not|dont|don't|never|won't|wont|unable|refuse)\b", raw):
         return True
-    # Hindi / Devanagari / Transliterated negation tokens
+    # Standalone 'ना' or 'na' with word/whitespace boundaries
+    if re.search(r"(?:^|\s)(?:ना|na)(?:$|\s|[.,!?])", raw):
+        return True
+    # Hindi / Devanagari / Transliterated multi-character negation tokens
     hindi_neg_tokens = [
         "नहीं", "नही", "nahi", "nhi", "mat", "मत", "कैंसिल", "cancel",
         "kabhi nahi", "नहीं कर पाऊंगा", "नहीं होगा", "nahi dunga",
         "nahi karunga", "not possible", "नो", "नॉट", "कैन नॉट", "कैनॉट", "कैन नाट",
-        "नहीं कर सकता", "nahi kar sakta", "ना", "संभव नहीं",
+        "नहीं कर सकता", "nahi kar sakta", "संभव नहीं", "असंभव",
     ]
     return any(neg in raw for neg in hindi_neg_tokens)
 
@@ -818,11 +821,18 @@ def _rule_based_fallback_classification(transcript: str) -> dict:
         "aaj settle", "settle today", "pay today", "aaj pay", "aaj hi", "aaj kar dunga",
         "isko aaj settle", "main isko aaj", "clearing today", "will settle today",
         "dhanyawad", "shukriya", "thanks", "thank you",
+        "split karna", "split payment", "split karunga", "split kar do", "split kar doon",
+        "karna chahunga", "karna chahungi", "karna chahta", "karna chahta hoon", "karna chahta hu",
+        "original amount", "full amount",
         # Devanagari Hindi
         "अभी पे", "abhi pe", "हाँ", "हां", "हूँ", "हूं",
         "कर सकता हूँ", "कर सकता हूं", "कर सकता", "कर सकते हैं",
         "कर दूंगा", "कर दूँगा", "कर देता हूँ", "कर देता हूं", "करूँगा", "करूंगा",
         "यह कर सकता", "ये कर सकता", "यह पेमेंट", "ये पेमेंट", "पेमेंट कर दूंगा", "पेमेंट कर दूँगा",
+        "करना चाहूँगा", "करना चाहूंगा", "करना चाहता हूँ", "करना चाहता हूं", "करना चाहूँगी", "करना चाहूंगी",
+        "चाहुंगा", "चाहूंगा", "चाहूँगी", "चाहूंगी",
+        "स्प्लिट करना", "स्प्लिट", "स्प्लिट पेमेंट", "स्प्लिट ऑप्शन",
+        "ओरिजिनल अमाउंट", "ओरिजिनल", "पूरा अमाउंट", "फुल अमाउंट",
         "ओके", "ठीक है", "सही है", "मंज़ूर है", "मंजूर है", "चलेगा", "डन", "सहमत",
         "पे करता हूँ", "पे कर दूंगा", "पे कर दूँगा", "दे दूंगा", "दे दूँगा", "सेटल कर दूंगा", "सेटल कर दूँगा",
         "आज सेटल", "आज ही", "आज कर दूंगा", "आज कर दूँगा", "आज पे", "आज पेमेंट", "इसको आज सेटल",

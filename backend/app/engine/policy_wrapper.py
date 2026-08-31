@@ -83,18 +83,39 @@ def parse_relative_ptp_date(date_str: str | None, base_date: datetime | None = N
     return max_ptp
 
 
+def _is_requesting_discounted_split(raw: str, intent_data: DebtorIntentClassification) -> bool:
+    """Check if debtor is asking for a discount on top of split payment."""
+    if intent_data.customer_stated_discount_pct is not None and intent_data.customer_stated_discount_pct > 0:
+        return True
+    # If customer explicitly says original amount / full amount / just split
+    if any(w in raw for w in ["original amount", "ओरिजिनल", "full amount", "पूरा अमाउंट", "फुल्ल"]):
+        return False
+    discount_words = [
+        "discount", "डिस्काउंट", "डिस्काउंटेड", "chhoot", "छूट", "kam karo", "kam kar",
+        "concession", "waiver", "reduce", "रियायत", "कम करो", "कम कर",
+        "settlement", "percent off", "प्रतिशत", "परसेंट", "%"
+    ]
+    return any(w in raw for w in discount_words)
+
+
 async def execute_policy_turn(
     invoice: Invoice,
     intent_data: DebtorIntentClassification,
-    db: AsyncSession,
+    session: AsyncSession,
 ) -> AgentTurnDecision:
     """
-    Authoritative evaluation of debtor intent.
-    Translates intent into strict deterministic financial and FSM actions.
-    Enforces 3-day PTP cap and post-PTP breach escalation/1-hour payment rules.
+    Execute a single multi-turn voice negotiation step governed strictly by
+    the deterministic DiscountCalculator and StateMachine invariants.
     """
-    sm = StateMachine(invoice, db)
-    previous_state = sm.current_state or invoice.current_state or State.TRIGGERED
+    sm = StateMachine(invoice, session)
+    previous_state = invoice.current_state or State.DUNNING_ACTIVE
+    intent = intent_data.intent
+
+    raw_transcript = (getattr(intent_data, "raw_transcript", "") or "").lower()
+    is_split = intent_data.is_split_requested or any(
+        w in raw_transcript for w in ["split", "स्प्लिट", "aadha", "आधा", "half", "50%"]
+    )
+
     merchant_cap = Decimal(str(invoice.merchant.default_discount_cap))
     consecutive_months = invoice.customer.consecutive_discount_months
     gross_amount = Decimal(str(invoice.amount_inr))
@@ -130,7 +151,7 @@ async def execute_policy_turn(
 
     resulting_state = previous_state
     new_invoice_status = invoice.status
-    action_executed = "No state transition"
+    action_executed = "No state change"
     trigger_auto_close = False
     resolved_ptp_date: datetime | None = None
     dispute_reason_text: str | None = None
@@ -192,9 +213,41 @@ async def execute_policy_turn(
             dispute_reason=dispute_reason_text,
         )
 
-    # ─────────────────────────────────────────────────────────────────────────
-    # 1. PAY_NOW / Split Plan Acceptance — Customer indicates immediate payment
-    # ─────────────────────────────────────────────────────────────────────────
+    # ── UNIVERSAL SPLIT PAYMENT ON FULL AMOUNT (No discount requested) ───────────
+    # If customer in SPLIT_OFFERED or any discount tier selects split payment on full amount:
+    if is_split and not _is_requesting_discounted_split(raw_transcript, intent_data) and previous_state in (
+        State.SPLIT_OFFERED, State.TIER_1_DISCOUNT, State.TIER_2_DISCOUNT, State.TIER_3_FLOOR
+    ):
+        target_due = datetime.now(timezone.utc) + timedelta(hours=1)
+        resolved_ptp_date = target_due
+        invoice.next_action_due_at = target_due
+        invoice.call_pending = False
+        half_amt = (gross_amount / Decimal("2")).quantize(Decimal("0.01"))
+        if sm.can_transition(State.SPLIT_FIRST_HALF_PENDING):
+            resulting_state = State.SPLIT_FIRST_HALF_PENDING
+            await sm.transition(
+                target_state=State.SPLIT_FIRST_HALF_PENDING,
+                discount_offered=0.0,
+                ptp_deadline=target_due,
+                log_message=f"Debtor selected Split Payment Plan on full amount (1st 50% ₹{half_amt:,.0f} due in 1 hr; remaining 50% in 3 days PTP).",
+            )
+        action_executed = f"Debtor selected Split Payment Plan on full amount (1st 50% ₹{half_amt:,.0f} due in 1 hour). Awaiting 1st half payment."
+        trigger_auto_close = True
+        return AgentTurnDecision(
+            intent="PAY_NOW",
+            confidence=intent_data.confidence,
+            customer_stated_discount_pct=None,
+            authorized_discount_rate=Decimal("0.0"),
+            authorized_net_amount=gross_amount,
+            previous_state=previous_state,
+            resulting_state=resulting_state,
+            new_invoice_status=invoice.status,
+            action_executed=action_executed,
+            trigger_auto_close=trigger_auto_close,
+            ptp_date=resolved_ptp_date,
+            dispute_reason=None,
+        )
+
     # ─────────────────────────────────────────────────────────────────────────
     # 1. PAY_NOW / Split Plan Acceptance — Customer indicates immediate payment
     # ─────────────────────────────────────────────────────────────────────────

@@ -148,6 +148,7 @@ TRANSITION_MAP: dict[str, frozenset[str]] = {
         State.ESCALATED_HUMAN,
         State.LINK_SENT,
         State.SPLIT_OFFERED,
+        State.SPLIT_FIRST_HALF_PENDING,
     }),
     State.TIER_2_DISCOUNT: frozenset({
         State.RESOLVED,
@@ -155,12 +156,14 @@ TRANSITION_MAP: dict[str, frozenset[str]] = {
         State.PTP_ACTIVE,
         State.ESCALATED_HUMAN,
         State.LINK_SENT,
+        State.SPLIT_FIRST_HALF_PENDING,
     }),
     State.TIER_3_FLOOR: frozenset({
         State.RESOLVED,
         State.ESCALATED_HUMAN,
         State.PTP_ACTIVE,
         State.LINK_SENT,
+        State.SPLIT_FIRST_HALF_PENDING,
     }),
     # Terminal states — no valid onward transitions
     State.RESOLVED:        frozenset(),
