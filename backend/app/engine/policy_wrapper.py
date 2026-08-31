@@ -98,12 +98,35 @@ async def execute_policy_turn(
     merchant_cap = Decimal(str(invoice.merchant.default_discount_cap))
     consecutive_months = invoice.customer.consecutive_discount_months
     gross_amount = Decimal(str(invoice.amount_inr))
-    current_tier = getattr(invoice, "current_discount_tier", 0) or 0
+    # Authoritatively derive current discount tier from previous FSM state or historical events
+    if previous_state == State.TIER_1_DISCOUNT:
+        current_tier = 1
+    elif previous_state == State.TIER_2_DISCOUNT:
+        current_tier = 2
+    elif previous_state == State.TIER_3_FLOOR:
+        current_tier = 3
+    else:
+        current_tier = getattr(invoice, "current_discount_tier", 0) or 0
+        if current_tier == 0 and getattr(invoice, "recovery_events", None):
+            for ev in reversed(invoice.recovery_events):
+                if ev.current_state == State.TIER_3_FLOOR:
+                    current_tier = 3
+                    break
+                elif ev.current_state == State.TIER_2_DISCOUNT:
+                    current_tier = 2
+                    break
+                elif ev.current_state == State.TIER_1_DISCOUNT:
+                    current_tier = 1
+                    break
 
     # Retain or compute current authorized discount
-    existing_discount_rate = Decimal(str(getattr(invoice, "applied_discount_rate", 0) or 0))
-    authorized_discount_rate = existing_discount_rate
-    authorized_net_amount = (gross_amount * (Decimal("1.0000") - authorized_discount_rate)).quantize(Decimal("0.01"))
+    if current_tier > 0 and consecutive_months < 3:
+        calc_cur = calculator.calculate(merchant_cap, consecutive_months, current_tier, gross_amount)
+        authorized_discount_rate = calc_cur.discount_rate
+        authorized_net_amount = calc_cur.net_payable_inr
+    else:
+        authorized_discount_rate = Decimal("0.0000")
+        authorized_net_amount = gross_amount
 
     resulting_state = previous_state
     new_invoice_status = invoice.status

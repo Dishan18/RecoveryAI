@@ -628,12 +628,19 @@ _HINDI_NUM_WORDS: dict[str, float] = {
     "सौ": 100.0, "hundred": 100.0,
 }
 
-# Negation tokens used to suppress affirmative PAY_NOW classification
-_NEGATION_TOKENS = [
-    "नहीं", "नही", "nahi", "nhi", "mat", "मत", "won't", "wont", "cancel",
-    "कैंसिल", "refuse", "never", "kabhi nahi", "नहीं कर पाऊंगा",
-    "नहीं होगा", "nahi dunga", "nahi karunga", "not possible",
-]
+def _has_negation(raw: str) -> bool:
+    """Check for explicit negation in English, Hinglish, and Hindi Devanagari."""
+    # Word boundary regex for Latin negation tokens to avoid false positives (e.g. 'now' matching 'no')
+    if re.search(r"\b(no|not|cannot|can't|cant|can not|dont|don't|never|won't|wont|unable|refuse)\b", raw):
+        return True
+    # Hindi / Devanagari / Transliterated negation tokens
+    hindi_neg_tokens = [
+        "नहीं", "नही", "nahi", "nhi", "mat", "मत", "कैंसिल", "cancel",
+        "kabhi nahi", "नहीं कर पाऊंगा", "नहीं होगा", "nahi dunga",
+        "nahi karunga", "not possible", "नो", "नॉट", "कैन नॉट", "कैनॉट", "कैन नाट",
+        "नहीं कर सकता", "nahi kar sakta", "ना", "संभव नहीं",
+    ]
+    return any(neg in raw for neg in hindi_neg_tokens)
 
 
 def _rule_based_fallback_classification(transcript: str) -> dict:
@@ -651,6 +658,7 @@ def _rule_based_fallback_classification(transcript: str) -> dict:
     8. UNKNOWN — fallback
     """
     raw = transcript.lower().strip()
+    has_negation = _has_negation(raw)
 
     # ── PRIORITY 1: DISPUTE (Immediate Freeze) ──────────────────────────────
     if any(w in raw for w in [
@@ -795,7 +803,6 @@ def _rule_based_fallback_classification(transcript: str) -> dict:
         }
 
     # ── PRIORITY 7: PAY_NOW — Only if affirmative AND no negation present ────
-    has_negation = any(neg in raw for neg in _NEGATION_TOKENS)
     pay_now_phrases = [
         # Multi-word English / Latin Hinglish
         "pay now", "abhi payment kar", "abhi kar deta", "turant pay",
@@ -810,6 +817,7 @@ def _rule_based_fallback_classification(transcript: str) -> dict:
         "yeh kar sakta", "ye kar sakta", "yeh kar dunga", "ye kar dunga",
         "aaj settle", "settle today", "pay today", "aaj pay", "aaj hi", "aaj kar dunga",
         "isko aaj settle", "main isko aaj", "clearing today", "will settle today",
+        "dhanyawad", "shukriya", "thanks", "thank you",
         # Devanagari Hindi
         "अभी पे", "abhi pe", "हाँ", "हां", "हूँ", "हूं",
         "कर सकता हूँ", "कर सकता हूं", "कर सकता", "कर सकते हैं",
@@ -818,9 +826,10 @@ def _rule_based_fallback_classification(transcript: str) -> dict:
         "ओके", "ठीक है", "सही है", "मंज़ूर है", "मंजूर है", "चलेगा", "डन", "सहमत",
         "पे करता हूँ", "पे कर दूंगा", "पे कर दूँगा", "दे दूंगा", "दे दूँगा", "सेटल कर दूंगा", "सेटल कर दूँगा",
         "आज सेटल", "आज ही", "आज कर दूंगा", "आज कर दूँगा", "आज पे", "आज पेमेंट", "इसको आज सेटल",
+        "धन्यवाद", "शुक्रिया", "थैंक यू", "थैंक्स",
     ]
 
-    has_standalone_affirmation = bool(re.search(r"\b(ha|haan|ok|okay|yes|done|sure|agree)\b", raw))
+    has_standalone_affirmation = bool(re.search(r"\b(ha|haan|ok|okay|yes|done|sure|agree|thanks|thank)\b", raw))
 
     if not has_negation and (has_standalone_affirmation or any(w in raw for w in pay_now_phrases)):
         return {
@@ -845,8 +854,10 @@ def _rule_based_fallback_classification(transcript: str) -> dict:
     # ── PRIORITY 8: SOFT REFUSAL (negation present but no other match) ───────
     if has_negation or any(w in raw for w in [
         "nahi karunga", "nahi dunga", "refuse", "too low", "too high",
-        "not possible", "nahi hoga", "no", "won't pay", "kabhi nahi",
-        "still not enough", "not enough", "cannot pay",
+        "not possible", "nahi hoga", "no", "नो", "won't pay", "kabhi nahi",
+        "still not enough", "not enough", "cannot pay", "cannot", "can not",
+        "not make", "cannot make", "आई कैन नॉट", "कैन नॉट", "कैनॉट", "नहीं कर सकता",
+        "nahi kar sakta", "संभव नहीं", "paise nahi", "not today", "aaj nahi",
     ]):
         return {
             "intent": "REFUSAL",
@@ -1015,9 +1026,9 @@ async def generate_grounded_speech(
         if turn_decision.customer_stated_discount_pct and turn_decision.customer_stated_discount_pct > (turn_decision.authorized_discount_rate * 100):
             req_pct = f"{turn_decision.customer_stated_discount_pct:.0f}%"
             return _sanitize_speech_output(
-                f"I understand you are asking for a {req_pct} discount. The maximum authorized concession available "
-                f"at this stage is {pct_str}, bringing your payable balance to {net_str}. "
-                "Would you like me to send you the payment link?"
+                f"Main samajh sakta hoon ki aap {req_pct} discount chahte hain, lekin policy ke mutabik "
+                f"abhi maximum {pct_str} concession hi allow hai, jisse aapko sirf {net_str} pay karna hoga. "
+                "Kya main payment link bhej doon?"
             )
 
         if state == "TIER_3_FLOOR":
@@ -1031,8 +1042,8 @@ async def generate_grounded_speech(
                 f"jisse aapki net payable amount {net_str} ho jayegi. Kya aap ise finalize karenge?"
             )
         return _sanitize_speech_output(
-            f"We can offer you an authorized {pct_str} concession today, bringing your payable balance to "
-            f"{net_str}. Would you like me to send you the payment link?"
+            f"Aapke liye hum {pct_str} concession offer kar sakte hain, jisse aapko sirf {net_str} "
+            "pay karna hoga. Kya main aapko payment link bhej doon?"
         )
 
     # 5. Technical Gateway Issue
