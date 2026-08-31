@@ -307,6 +307,18 @@ export default function OperationsConsole() {
   const [paymentConfirmId, setPaymentConfirmId] = useState<string | null>(null);
   const [paymentSubmittingId, setPaymentSubmittingId] = useState<string | null>(null);
   const [settledInvoiceIds, setSettledInvoiceIds] = useState<Set<string>>(new Set());
+  const [halfSettledInvoiceIds, setHalfSettledInvoiceIds] = useState<Set<string>>(new Set());
+
+  const isInvoiceHalfSettled = (inv: Invoice) => {
+    if (halfSettledInvoiceIds.has(inv.id)) return true;
+    return (inv.recovery_events || []).some(
+      (e) =>
+        e.log_message?.includes("50% Partial Payment") ||
+        e.log_message?.includes("MARK_HALF_SETTLED") ||
+        e.log_message?.includes("Half payment recorded") ||
+        e.log_message?.includes("First 50%")
+    );
+  };
 
   // Fast forward state
   const [fastForwarding, setFastForwarding] = useState(false);
@@ -448,6 +460,11 @@ export default function OperationsConsole() {
 
     if (paymentType === "FULL") {
       setSettledInvoiceIds((prev) => new Set(prev).add(inv.id));
+      setHalfSettledInvoiceIds((prev) => {
+        const next = new Set(prev);
+        next.delete(inv.id);
+        return next;
+      });
       // Instantly mark resolved locally
       setInvoices((prev) =>
         prev.map((item) =>
@@ -476,6 +493,7 @@ export default function OperationsConsole() {
       );
       showToast(`Full payment (100%) received & settled for ${inv.customer.name}`);
     } else {
+      setHalfSettledInvoiceIds((prev) => new Set(prev).add(inv.id));
       const halfVal = (grossVal / 2).toFixed(2);
       const ptpDate = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
       // Instantly update remaining amount & PTP
@@ -520,6 +538,12 @@ export default function OperationsConsole() {
     } catch (e: unknown) {
       if (paymentType === "FULL") {
         setSettledInvoiceIds((prev) => {
+          const next = new Set(prev);
+          next.delete(inv.id);
+          return next;
+        });
+      } else {
+        setHalfSettledInvoiceIds((prev) => {
           const next = new Set(prev);
           next.delete(inv.id);
           return next;
@@ -657,6 +681,7 @@ export default function OperationsConsole() {
               onClick={async () => {
                 try {
                   setSettledInvoiceIds(new Set());
+                  setHalfSettledInvoiceIds(new Set());
                   setCallQueue([]);
                   setPaymentConfirmId(null);
                   setActiveOverrideMenuId(null);
@@ -1092,11 +1117,20 @@ export default function OperationsConsole() {
                           </button>
                         )}
 
-                        {/* Payment Received Action: Red first, inline confirmation, turns Green when settled */}
+                        {/* Payment Received Action: Red outline first, Yellow when Half is clicked, Green when Full is settled */}
                         {inv.status === "RESOLVED" || settledInvoiceIds.has(inv.id) ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-300 rounded whitespace-nowrap shadow-xs">
                             Payment Received
                           </span>
+                        ) : isInvoiceHalfSettled(inv) ? (
+                          <button
+                            onClick={() => handlePaymentReceivedOptimistic(inv, "FULL")}
+                            disabled={paymentSubmittingId === inv.id}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-amber-900 bg-amber-100 border border-amber-400 hover:bg-emerald-600 hover:text-white hover:border-emerald-600 rounded transition-colors whitespace-nowrap shadow-xs disabled:opacity-50"
+                            title="50% already received. Click to record remaining 50% payment and settle in full."
+                          >
+                            <span>{paymentSubmittingId === inv.id ? "Saving..." : "Half Paid (Click for Full)"}</span>
+                          </button>
                         ) : inv.status === "UNPAID" ? (
                           paymentConfirmId === inv.id ? (
                             <div className="flex items-center gap-1.5 animate-in fade-in zoom-in-95">
