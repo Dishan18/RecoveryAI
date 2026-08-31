@@ -13,16 +13,11 @@ interface CallQueueDrawerProps {
 export function CallQueueDrawer({ queue, onRemoveFromQueue, onCallCompleted }: CallQueueDrawerProps) {
   const [activeCallInvoice, setActiveCallInvoice] = useState<Invoice | null>(null);
 
-  useEffect(() => {
-    // FIFO auto-start next call in queue if no active call
-    if (!activeCallInvoice && queue.length > 0) {
-      setActiveCallInvoice(queue[0]);
-    }
-  }, [queue, activeCallInvoice]);
+  const currentActive = activeCallInvoice || (queue.length > 0 ? queue[0] : null);
 
   const handleVoiceCallClose = () => {
-    if (activeCallInvoice) {
-      onRemoveFromQueue(activeCallInvoice.id);
+    if (currentActive) {
+      onRemoveFromQueue(currentActive.id);
       setActiveCallInvoice(null);
       onCallCompleted();
     }

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
-import { RefreshCw, ShieldCheck } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { api, AnalyticsOverview } from "@/lib/api";
 
 const INR = new Intl.NumberFormat("en-IN", {
@@ -30,10 +30,24 @@ export function AnalyticsTab() {
   }, []);
 
   useEffect(() => {
-    fetchAnalytics();
-    const interval = setInterval(() => fetchAnalytics(), 10000);
-    return () => clearInterval(interval);
-  }, [fetchAnalytics]);
+    let mounted = true;
+    const run = async () => {
+      try {
+        const res = await api.analyticsOverview();
+        if (mounted) setData(res);
+      } catch (err) {
+        console.warn("Analytics sync error:", err);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+    run();
+    const interval = setInterval(run, 10000);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, []);
 
   if (loading && !data) {
     return (

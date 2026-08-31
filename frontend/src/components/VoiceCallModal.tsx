@@ -2,10 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
-  AlertTriangle,
-  Bot,
-  CalendarCheck,
-  CheckCircle2,
   Mic,
   MicOff,
   PhoneCall,
@@ -13,7 +9,6 @@ import {
   Play,
   RefreshCw,
   Send,
-  Sparkles,
   Volume2,
 } from "lucide-react";
 import { api, Invoice, VoiceCallResponse, VoiceGreetingResponse } from "@/lib/api";
@@ -40,8 +35,6 @@ interface TurnHistoryItem {
 }
 
 export function VoiceCallModal({ invoice: initialInvoice, isOpen, onClose, onStateUpdated }: VoiceCallModalProps) {
-  if (isOpen === false) return null;
-
   const [currentInvoice, setCurrentInvoice] = useState<Invoice>(initialInvoice);
   const [callState, setCallState] = useState<CallState>("initiating");
   const [recording, setRecording] = useState(false);
@@ -202,7 +195,7 @@ export function VoiceCallModal({ invoice: initialInvoice, isOpen, onClose, onSta
       // Update local invoice state
       setCurrentInvoice((prev) => ({
         ...prev,
-        status: (res.new_invoice_status as any) || prev.status,
+        status: (res.new_invoice_status as Invoice["status"]) || prev.status,
       }));
 
       // Append to local turn history
@@ -263,7 +256,7 @@ export function VoiceCallModal({ invoice: initialInvoice, isOpen, onClose, onSta
       typeof v === "string" ? parseFloat(v) : v
     );
 
-  const lastTurn = turns[turns.length - 1];
+  if (isOpen === false) return null;
 
   return (
     <div
@@ -391,7 +384,7 @@ export function VoiceCallModal({ invoice: initialInvoice, isOpen, onClose, onSta
                 </button>
               </div>
               <p className="text-zinc-900 text-xs italic">
-                "{greeting.greeting_text}"
+                &ldquo;{greeting.greeting_text}&rdquo;
               </p>
             </div>
           )}
@@ -416,7 +409,7 @@ export function VoiceCallModal({ invoice: initialInvoice, isOpen, onClose, onSta
                 <div className="text-[10px] font-semibold text-zinc-500 uppercase mb-0.5">
                   Debtor Transcript:
                 </div>
-                <p className="italic text-xs">"{t.debtorText}"</p>
+                <p className="italic text-xs">&ldquo;{t.debtorText}&rdquo;</p>
               </div>
 
               {/* AI Agent Response */}
@@ -451,7 +444,7 @@ export function VoiceCallModal({ invoice: initialInvoice, isOpen, onClose, onSta
                   onClick={() => handleSimulateCall(p.text)}
                 >
                   <div className="text-[10px] font-bold text-blue-700 uppercase mb-0.5">{p.label}</div>
-                  <div className="text-zinc-800 text-[11px] truncate">"{p.text}"</div>
+                  <div className="text-zinc-800 text-[11px] truncate">&ldquo;{p.text}&rdquo;</div>
                 </button>
               ))}
             </div>
