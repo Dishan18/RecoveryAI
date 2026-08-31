@@ -729,7 +729,7 @@ async def voice_transcribe_and_reply(
     turn_decision = await execute_policy_turn(
         invoice=inv,
         intent_data=intent_data,
-        db=db,
+        session=db,
     )
 
     # Clear call_pending flag since call has now taken place

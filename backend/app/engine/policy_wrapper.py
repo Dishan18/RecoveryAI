@@ -101,13 +101,15 @@ def _is_requesting_discounted_split(raw: str, intent_data: DebtorIntentClassific
 async def execute_policy_turn(
     invoice: Invoice,
     intent_data: DebtorIntentClassification,
-    session: AsyncSession,
+    session: AsyncSession | None = None,
+    db: AsyncSession | None = None,
 ) -> AgentTurnDecision:
     """
     Execute a single multi-turn voice negotiation step governed strictly by
     the deterministic DiscountCalculator and StateMachine invariants.
     """
-    sm = StateMachine(invoice, session)
+    active_session = session if session is not None else db
+    sm = StateMachine(invoice, active_session)
     previous_state = invoice.current_state or State.DUNNING_ACTIVE
     intent = intent_data.intent
 
