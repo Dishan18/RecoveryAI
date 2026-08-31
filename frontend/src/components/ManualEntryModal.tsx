@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { X } from "lucide-react";
 import { api, ManualInvoiceCreatePayload } from "../lib/api";
 
 interface ManualEntryModalProps {
@@ -97,8 +98,9 @@ export function ManualEntryModal({ isOpen, onClose, onSuccess }: ManualEntryModa
           <button
             onClick={onClose}
             className="p-1 text-zinc-400 hover:text-zinc-600 rounded hover:bg-zinc-100 transition-colors"
+            title="Close"
           >
-            ✕
+            <X size={14} />
           </button>
         </div>
 

@@ -14,6 +14,7 @@ import {
   RefreshCw,
   Search,
   Users,
+  X,
 } from "lucide-react";
 import {
   AnalyticsSummaryResponse,
@@ -1101,7 +1102,7 @@ export default function OperationsConsole() {
                                 className="bg-amber-500 hover:bg-amber-600 text-white font-medium px-2.5 py-1 rounded text-xs transition-colors shadow-xs flex items-center gap-1 disabled:opacity-50"
                                 title="Settle 50% immediate, 50% in 3 days"
                               >
-                                <span>⚡ Half (50%)</span>
+                                <span>Half (50%)</span>
                               </button>
                               <button
                                 onClick={() => handlePaymentReceivedOptimistic(inv, "FULL")}
@@ -1109,14 +1110,14 @@ export default function OperationsConsole() {
                                 className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-2.5 py-1 rounded text-xs transition-colors shadow-xs flex items-center gap-1 disabled:opacity-50"
                                 title="Settle 100% full payment"
                               >
-                                <span>✓ Full (100%)</span>
+                                <span>Full (100%)</span>
                               </button>
                               <button
                                 onClick={() => setPaymentConfirmId(null)}
-                                className="px-1.5 py-1 text-xs text-zinc-400 hover:text-zinc-700 rounded transition-colors"
+                                className="p-1 text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 rounded transition-colors"
                                 title="Cancel"
                               >
-                                ✕
+                                <X size={13} />
                               </button>
                             </div>
                           ) : (

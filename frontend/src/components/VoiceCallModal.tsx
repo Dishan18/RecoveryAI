@@ -10,6 +10,7 @@ import {
   RefreshCw,
   Send,
   Volume2,
+  X,
 } from "lucide-react";
 import { api, Invoice, VoiceCallResponse, VoiceGreetingResponse } from "../lib/api";
 
@@ -292,8 +293,8 @@ export function VoiceCallModal({ invoice: initialInvoice, isOpen, onClose, onSta
               Outbound Voice Recovery Agent (Multi-Turn Negotiation)
             </span>
           </div>
-          <button onClick={onClose} className="text-zinc-400 hover:text-zinc-600 text-xs">
-            ✕
+          <button onClick={onClose} className="p-1 text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 rounded transition-colors" title="Close">
+            <X size={14} />
           </button>
         </div>
 
