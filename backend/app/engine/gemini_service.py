@@ -594,7 +594,9 @@ CRITICAL: If a sentence contains BOTH discount keywords AND payment/pay words (e
 FEW-SHOT EXAMPLES:
 - "मुझे फिफ्टी परसेंट डिस्काउंट चाहिए नहीं तो मैं यह पेमेंट नहीं कर पाऊंगा" → {{"intent":"REQUEST_DISCOUNT","customer_stated_discount_pct":50.0}}
 - "गलत बिल भेजा है आपने, मैं पैसे नहीं दूंगा" → {{"intent":"DISPUTE","dispute_reason":"Wrong bill sent"}}
-- "5 din baad salary aane par dunga" → {{"intent":"PROMISE_TO_PAY","ptp_date_extracted":"+5 days"}}
+- "5 din baad salary aane par dunga" → {{"intent":"PROMISE_TO_PAY","ptp_date_extracted":"5 din"}}
+- "मैं इसको पाँच दिन में सेटल कर दूँगा" → {{"intent":"PROMISE_TO_PAY","ptp_date_extracted":"5 din"}}
+- "आई विल मेक द पेमेंट विदिन थ्री डेज़" → {{"intent":"PROMISE_TO_PAY","ptp_date_extracted":"3 days"}}
 - "abhi link bhejo pay karta hu" → {{"intent":"PAY_NOW"}}
 - "UPI reject ho raha hai bar bar" → {{"intent":"TECHNICAL_PROBLEM"}}
 - "agar 10% off milega toh aaj pay karunga" → {{"intent":"REQUEST_DISCOUNT","customer_stated_discount_pct":10.0}}
@@ -722,23 +724,42 @@ def _rule_based_fallback_classification(transcript: str) -> dict:
     # ── PRIORITY 4: PROMISE_TO_PAY ───────────────────────────────────────────
     ptp_keywords = [
         "friday", "monday", "tuesday", "wednesday", "thursday", "saturday", "sunday",
-        "मंडे", "सोमवार", "ट्यूजडे", "मंगलवार", "वेडनसडे", "बुधवार", "थर्सडे", "गुरुवार", "फ्राइडे", "शुक्रवार", "सैटरडे", "शनिवार", "संडे", "रविवार",
-        "kal", "कल", "parso", "parson", "परसों", "tomorrow",
-        "3 din", "teen din", "तीन दिन", "3 days", "2 din", "do din", "दो दिन", "2 days",
-        "1 din", "ek din", "एक दिन", "1 day", "one day",
-        "5 din", "5 days", "next week", "agle hafte", "अगले हफ्ते", "week", "hafte",
-        "salary aane par", "tareekh", "tarikh",
+        "मंडे", "सोमवार", "ट्यूजडे", "ट्यूसडे", "मंगलवार", "वेडनसडे", "बुधवार", "थर्सडे", "गुरुवार", "फ्राइडे", "शुक्रवार", "सैटरडे", "शनिवार", "संडे", "रविवार",
+        "kal", "कल", "parso", "parson", "परसों", "tomorrow", "day after",
+        "3 din", "teen din", "तीन दिन", "3 days", "three days", "3 डेज़", "3 डेज", "थ्री डेज़", "थ्री डेज", "विदिन थ्री डेज़", "विदिन 3 डेज़",
+        "2 din", "do din", "दो दिन", "2 days", "two days", "2 डेज़", "2 डेज", "टू डेज़", "टू डेज", "टु डेज़", "टु डेज",
+        "1 din", "ek din", "एक दिन", "1 day", "one day", "1 डे", "वन डे", "today", "aaj sham", "आज शाम",
+        "4 din", "char din", "चार दिन", "4 days", "4 डेज़", "4 डेज",
+        "5 din", "paanch din", "panch din", "पांच दिन", "पाँच दिन", "पाँच", "पांच", "5 days", "5 डेज़", "5 डेज", "फाइव डेज़", "फाइव डेज",
+        "6 din", "छह दिन", "6 days", "7 din", "saat din", "सात दिन", "7 days", "10 din", "दस दिन", "10 days", "15 din", "15 days",
+        "next week", "agle hafte", "अगले हफ्ते", "नेक्स्ट वीक", "week", "hafte", "hafta", "हफ्ते",
+        "salary aane par", "salary aayegi", "tareekh", "tarikh", "महीने", "month end", "agle mahine",
+        "सेटल कर दूंगा", "सेटल कर दूँगा", "settle kar dunga", "payment kar dunga", "मेक द पेमेंट", "make the payment",
+        "आई विल मेक", "विदिन", "within",
     ]
+    matched_ptp = None
     for kw in ptp_keywords:
         if kw in raw:
-            return {
-                "intent": "PROMISE_TO_PAY",
-                "confidence": 0.95,
-                "customer_stated_discount_pct": None,
-                "ptp_date_extracted": kw,
-                "dispute_reason": None,
-                "sentiment": "COOPERATIVE",
-            }
+            matched_ptp = kw
+            break
+
+    if not matched_ptp:
+        ptp_regex = re.search(
+            r"(?:विदिन|within|in)?\s*(\d+|एक|दो|तीन|चार|पांच|पाँच|छह|सात|आठ|नौ|दस|one|two|three|four|five|six|seven|eight|nine|ten|थ्री|टू|वन|फोर|फाइव)\s*(days?|दिन|din|डेज़|डेज|hafta|hafte|week|weeks|mahina|mahine|month|months)",
+            raw
+        )
+        if ptp_regex:
+            matched_ptp = ptp_regex.group(0)
+
+    if matched_ptp:
+        return {
+            "intent": "PROMISE_TO_PAY",
+            "confidence": 0.95,
+            "customer_stated_discount_pct": None,
+            "ptp_date_extracted": matched_ptp,
+            "dispute_reason": None,
+            "sentiment": "COOPERATIVE",
+        }
 
     # ── PRIORITY 5: TECHNICAL_PROBLEM (Gateway / UPI) ────────────────────────
     if any(w in raw for w in [
@@ -896,6 +917,11 @@ async def generate_grounded_speech(
 
     # 1. Terminal Escalation Invariant
     if state == "ESCALATED_HUMAN":
+        if "breach" in turn_decision.action_executed.lower() or "prohibits" in turn_decision.action_executed.lower():
+            return _sanitize_speech_output(
+                "Aapka pichla payment commitment breach ho chuka hai, isliye ab mazeed samay allow nahi hai. "
+                "Hum aapka case senior financial officer aur recovery legal team ko escalate kar rahe hain. Dhanyawad."
+            )
         return _sanitize_speech_output(
             "Since you have declined the available payment options, I will forward "
             "this case to a senior financial officer for formal review. Thank you for your time."
@@ -912,6 +938,11 @@ async def generate_grounded_speech(
     # 3. Promise to Pay Invariant
     if state == "PTP_ACTIVE":
         ptp_str = turn_decision.ptp_date.strftime("%d %B %Y") if turn_decision.ptp_date else "the agreed date"
+        if "3-day policy cap applied" in turn_decision.action_executed or "maximum 3 days" in turn_decision.action_executed:
+            return _sanitize_speech_output(
+                f"Humari policy ke mutabik maximum 3 din ka commitment allow hai. Maine {ptp_str} tak aapka "
+                "payment commitment record kar liya hai. Payment link aapke mobile par bhej diya gaya hai."
+            )
         return _sanitize_speech_output(
             f"Dhanyawad! Maine {ptp_str} tak aapka payment commitment record kar liya hai. "
             "Payment link aapke mobile par bhej diya gaya hai."
@@ -956,6 +987,11 @@ async def generate_grounded_speech(
     # 6. Payment Link Request / Immediate Pay
     if turn_decision.intent in ("REQUEST_PAYMENT_LINK", "PAY_NOW") or state == "LINK_SENT":
         net_str = f"₹{turn_decision.authorized_net_amount:,.0f}"
+        if "1 hour" in turn_decision.action_executed:
+            return _sanitize_speech_output(
+                f"Maine payment link SMS aur WhatsApp par bhej diya hai. Pichle promise breach ki wajah se kripya agle 1 ghante mein {net_str} ki payment "
+                "complete karein, warna case escalate ho jayega."
+            )
         return _sanitize_speech_output(
             f"Maine payment link SMS aur WhatsApp par bhej diya hai. Kripya {net_str} ki payment "
             "link ke zariye turant complete karein."

@@ -805,14 +805,15 @@ async def voice_call_greeting(
         "PTP commitment deadline breached" in (e.log_message or "")
         or "PTP Breach" in (e.log_message or "")
         or "pichla payment promise breach" in (e.log_message or "")
+        or "PTP breached" in (e.log_message or "")
         or (e.current_state == State.PTP_ACTIVE and e.ptp_deadline and e.ptp_deadline < e.timestamp)
         for e in inv.recovery_events
-    )
+    ) or (current_state == State.PTP_ACTIVE and getattr(inv, "ptp_date", None) and inv.ptp_date < datetime.now(timezone.utc))
 
     if has_prior_ptp_breached or current_state == State.PTP_ACTIVE:
         greeting_text = (
             f"Namaste {inv.customer.name} ji! Aapka pichla payment promise breach ho gaya hai. "
-            f"Kya aap abhi payment complete kar rahe hain?"
+            f"Policy ke mutabik ab aur time nahi diya ja sakta. Kripya 1 ghante ke andar payment complete karein ya case escalate kiya jaye?"
         )
     elif current_state == State.TIER_1_DISCOUNT:
         res1 = calculator.calculate(cap, months, 1, gross)

@@ -33,30 +33,31 @@ logger = logging.getLogger(__name__)
 def parse_relative_ptp_date(date_str: str | None, base_date: datetime | None = None) -> datetime:
     """
     Deterministically resolve relative date strings (English / Hindi / Hinglish)
-    into a validated future UTC datetime. Clamped to a maximum 14-day window.
+    into a validated future UTC datetime. STRICTLY CLAMPED TO A MAXIMUM 3-DAY WINDOW.
     """
     now = base_date or datetime.now(timezone.utc)
+    max_ptp = now + timedelta(days=3)
     if not date_str:
-        return now + timedelta(days=3)
+        return max_ptp
 
     raw = date_str.lower().strip()
 
     # Direct day offsets
-    if any(k in raw for k in ["kal", "कल", "tomorrow"]):
-        return now + timedelta(days=1)
-    if any(k in raw for k in ["parson", "parso", "परसों", "day after"]):
-        return now + timedelta(days=2)
-    if any(k in raw for k in ["3 din", "3 days", "teen din", "तीन दिन"]):
-        return now + timedelta(days=3)
-    if any(k in raw for k in ["5 din", "5 days", "paanch din", "पांच दिन"]):
-        return now + timedelta(days=5)
-    if any(k in raw for k in ["next week", "agle hafte", "अगले हफ्ते", "1 week", "one week"]):
-        return now + timedelta(days=7)
+    if any(k in raw for k in ["kal", "कल", "tomorrow", "1 din", "1 day", "ek din", "एक दिन", "1 डे", "वन डे"]):
+        return min(now + timedelta(days=1), max_ptp)
+    if any(k in raw for k in ["parson", "parso", "परसों", "day after", "2 din", "2 days", "do din", "दो दिन", "2 डेज़", "2 डेज", "टू डेज़", "टू डेज", "टु डेज़"]):
+        return min(now + timedelta(days=2), max_ptp)
+    if any(k in raw for k in ["3 din", "3 days", "teen din", "तीन दिन", "3 डेज़", "3 डेज", "थ्री डेज़", "थ्री डेज"]):
+        return max_ptp
+
+    # Greater than 3 days (e.g. 5 days, 10 days, next week) -> STRICTLY CAPPED AT 3 DAYS
+    if any(k in raw for k in ["5 din", "5 days", "paanch din", "पांच दिन", "पाँच दिन", "पाँच", "पांच", "5 डेज़", "next week", "agle hafte", "अगले हफ्ते", "1 week", "one week", "month"]):
+        return max_ptp
 
     # Weekdays mapping
     days_of_week = {
         "monday": 0, "मंडे": 0, "somwar": 0, "सोमवार": 0,
-        "tuesday": 1, "ट्यूजडे": 1, "mangalwar": 1, "मंगलवार": 1,
+        "tuesday": 1, "ट्यूजडे": 1, "ट्यूसडे": 1, "mangalwar": 1, "मंगलवार": 1,
         "wednesday": 2, "वेडनसडे": 2, "budhwar": 2, "बुधवार": 2,
         "thursday": 3, "थर्सडे": 3, "guruwar": 3, "गुरुवार": 3,
         "friday": 4, "फ्राइडे": 4, "shukrawar": 4, "शुक्रवार": 4,
@@ -68,18 +69,18 @@ def parse_relative_ptp_date(date_str: str | None, base_date: datetime | None = N
             current_weekday = now.weekday()
             days_ahead = (target_weekday - current_weekday) % 7
             if days_ahead == 0:
-                days_ahead = 7  # Next occurrence
-            return now + timedelta(days=days_ahead)
+                days_ahead = 7
+            calculated = now + timedelta(days=days_ahead)
+            return min(calculated, max_ptp)
 
-    # Regex for N days (e.g. "4 days", "10 din")
-    match = re.search(r"(\d+)\s*(days?|din|दिन)", raw)
+    # Regex for N days (e.g. "4 days", "10 din", "पाँच दिन")
+    match = re.search(r"(\d+)\s*(days?|din|दिन|डेज़|डेज)", raw)
     if match:
         n = int(match.group(1))
-        n = min(max(n, 1), 14)  # Clamp between 1 and 14 days
-        return now + timedelta(days=n)
+        return min(now + timedelta(days=max(n, 1)), max_ptp)
 
-    # Default fallback: 3 business days
-    return now + timedelta(days=3)
+    # Default fallback: 3 days policy cap
+    return max_ptp
 
 
 async def execute_policy_turn(
@@ -90,6 +91,7 @@ async def execute_policy_turn(
     """
     Authoritative evaluation of debtor intent.
     Translates intent into strict deterministic financial and FSM actions.
+    Enforces 3-day PTP cap and post-PTP breach escalation/1-hour payment rules.
     """
     sm = StateMachine(invoice, db)
     previous_state = sm.current_state or invoice.current_state or State.TRIGGERED
@@ -112,6 +114,61 @@ async def execute_policy_turn(
 
     intent = intent_data.intent
 
+    # Check for prior PTP breach condition
+    has_prior_ptp_breached = any(
+        "PTP commitment deadline breached" in (e.log_message or "")
+        or "PTP Breach" in (e.log_message or "")
+        or "pichla payment promise breach" in (e.log_message or "")
+        or "PTP breached" in (e.log_message or "")
+        or "PTP breach" in (e.log_message or "")
+        or "prior_ptp_breach" in (e.log_message or "")
+        or (e.current_state == State.PTP_ACTIVE and e.ptp_deadline and e.ptp_deadline < e.timestamp)
+        for e in invoice.recovery_events
+    ) or (invoice.current_state == State.PTP_ACTIVE and getattr(invoice, "ptp_date", None) and invoice.ptp_date < datetime.now(timezone.utc))
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # POST-PTP BREACH POLICY: No further PTP allowed! Pay within 1 hr or escalate.
+    # ─────────────────────────────────────────────────────────────────────────
+    if has_prior_ptp_breached:
+        if intent in ("PAY_NOW", "REQUEST_PAYMENT_LINK"):
+            if sm.can_transition(State.LINK_SENT):
+                resulting_state = State.LINK_SENT
+                await sm.transition(
+                    target_state=State.LINK_SENT,
+                    discount_offered=float(authorized_discount_rate),
+                    log_message="Debtor agreed to pay post-PTP breach. 1-hour urgent payment link dispatched.",
+                )
+            invoice.next_action_due_at = datetime.now(timezone.utc) + timedelta(hours=1)
+            action_executed = "Post-PTP breach payment link dispatched. Debtor has 1 hour to complete payment before escalation."
+            trigger_auto_close = True
+        else:
+            # Any PTP request, refusal, discount request, or hesitation after PTP breach -> ESCALATE IMMEDIATELY
+            resulting_state = State.ESCALATED_HUMAN
+            invoice.call_pending = False
+            invoice.next_action_due_at = None
+            if sm.can_transition(State.ESCALATED_HUMAN):
+                await sm.transition(
+                    target_state=State.ESCALATED_HUMAN,
+                    log_message="Debtor requested PTP or refused payment after prior PTP breach. Policy prohibits further extensions. Escalated to senior recovery officer.",
+                )
+            action_executed = "Debtor requested PTP or refused payment after prior PTP breach. Policy prohibits further extensions. Escalated to senior recovery officer."
+            trigger_auto_close = True
+
+        return AgentTurnDecision(
+            intent=intent,
+            confidence=intent_data.confidence,
+            customer_stated_discount_pct=intent_data.customer_stated_discount_pct,
+            authorized_discount_rate=authorized_discount_rate,
+            authorized_net_amount=authorized_net_amount,
+            previous_state=previous_state,
+            resulting_state=resulting_state,
+            new_invoice_status=invoice.status,
+            action_executed=action_executed,
+            trigger_auto_close=trigger_auto_close,
+            ptp_date=resolved_ptp_date,
+            dispute_reason=dispute_reason_text,
+        )
+
     # ─────────────────────────────────────────────────────────────────────────
     # 1. PAY_NOW — Customer indicates immediate payment
     # ─────────────────────────────────────────────────────────────────────────
@@ -129,10 +186,13 @@ async def execute_policy_turn(
         trigger_auto_close = True
 
     # ─────────────────────────────────────────────────────────────────────────
-    # 2. PROMISE_TO_PAY — Negotiate commitment date
+    # 2. PROMISE_TO_PAY — Negotiate commitment date (MAX 3 DAYS ALLOWED)
     # ─────────────────────────────────────────────────────────────────────────
     elif intent == "PROMISE_TO_PAY":
         target_ptp = parse_relative_ptp_date(intent_data.ptp_date_extracted)
+        # Strict clamp to maximum 3 days
+        max_allowed = datetime.now(timezone.utc) + timedelta(days=3)
+        target_ptp = min(target_ptp, max_allowed)
         resolved_ptp_date = target_ptp
         invoice.ptp_date = target_ptp
 
@@ -142,9 +202,9 @@ async def execute_policy_turn(
                 target_state=State.PTP_ACTIVE,
                 discount_offered=float(authorized_discount_rate),
                 ptp_deadline=target_ptp,
-                log_message=f"Debtor committed to settle on {target_ptp.strftime('%d %b %Y')}.",
+                log_message=f"Debtor committed to settle on {target_ptp.strftime('%d %b %Y')} (3-day policy cap applied).",
             )
-        action_executed = f"Promise to pay recorded until {target_ptp.strftime('%d %b %Y')}. Automated dunning paused."
+        action_executed = f"Promise to pay recorded until {target_ptp.strftime('%d %b %Y')} (3-day policy cap applied). Automated dunning paused."
         trigger_auto_close = True
 
     # ─────────────────────────────────────────────────────────────────────────

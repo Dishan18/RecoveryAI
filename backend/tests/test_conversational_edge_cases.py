@@ -169,10 +169,20 @@ class TestDiscountPriority:
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestPromiseToPay:
-    """PTP should match on time-related keywords."""
+    """PTP should match on time-related keywords and Hindi/Hinglish speech."""
 
     def test_ptp_3_din(self):
         result = _rule_based_fallback_classification("3 din mein payment kar dunga")
+        assert result["intent"] == "PROMISE_TO_PAY"
+
+    def test_ptp_hindi_five_days_user_transcript(self):
+        """User test case: 'मैं इसको पाँच दिन में सेटल कर दूँगा।'"""
+        result = _rule_based_fallback_classification("मैं इसको पाँच दिन में सेटल कर दूँगा")
+        assert result["intent"] == "PROMISE_TO_PAY"
+
+    def test_ptp_transliterated_three_days_user_transcript(self):
+        """User test case: 'आई विल मेक द पेमेंट विदिन थ्री डेज़।'"""
+        result = _rule_based_fallback_classification("आई विल मेक द पेमेंट विदिन थ्री डेज़")
         assert result["intent"] == "PROMISE_TO_PAY"
 
     def test_ptp_kal(self):
@@ -194,6 +204,36 @@ class TestPromiseToPay:
     def test_ptp_salary_aane_par(self):
         result = _rule_based_fallback_classification("salary aane par dunga bhai")
         assert result["intent"] == "PROMISE_TO_PAY"
+
+
+class TestPTPPolicyAndBreachRules:
+    """Strict enforcement of 3-day PTP cap and post-PTP breach rules."""
+
+    def test_ptp_date_clamped_to_3_days_max(self):
+        from datetime import datetime, timezone, timedelta
+        from app.engine.policy_wrapper import parse_relative_ptp_date
+
+        base = datetime(2026, 9, 1, 12, 0, 0, tzinfo=timezone.utc)
+        
+        # 5 days requested -> clamped to max 3 days
+        d5 = parse_relative_ptp_date("5 days", base_date=base)
+        assert d5 == base + timedelta(days=3)
+
+        # "पाँच दिन" requested -> clamped to max 3 days
+        d_hindi = parse_relative_ptp_date("पाँच दिन", base_date=base)
+        assert d_hindi == base + timedelta(days=3)
+
+        # "next week" requested -> clamped to max 3 days
+        d_week = parse_relative_ptp_date("next week", base_date=base)
+        assert d_week == base + timedelta(days=3)
+
+        # 1 day requested -> 1 day (within 3 days)
+        d1 = parse_relative_ptp_date("kal", base_date=base)
+        assert d1 == base + timedelta(days=1)
+
+        # 2 days requested -> 2 days (within 3 days)
+        d2 = parse_relative_ptp_date("parso", base_date=base)
+        assert d2 == base + timedelta(days=2)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -114,27 +114,52 @@ async def process_expired_deadlines() -> dict:
                         logger.info("🔔 Reminder sent for invoice %s (%s)", inv.id, cust_name)
 
                     elif current in (State.REMINDER_SENT, State.LINK_SENT):
-                        # ── Reminder / Link window expired — queue voice call ──────────
-                        inv.call_pending = True
-                        inv.next_action_due_at = None
-                        from app.models import RecoveryEvent
-                        import uuid as _uuid
-                        last_disc = float(inv.recovery_events[-1].discount_offered) if inv.recovery_events else 0.0
-                        evt = RecoveryEvent(
-                            id=_uuid.uuid4(),
-                            invoice_id=inv.id,
-                            current_state=current,
-                            discount_offered=last_disc,
-                            log_message=(
-                                f"[AUTO-SCHEDULER] {current} payment window expired. "
-                                "No payment received. Voice call queued."
-                            ),
-                            timestamp=now,
+                        # Check if this invoice had a prior PTP breach
+                        has_prior_ptp_breached = any(
+                            "PTP commitment deadline breached" in (e.log_message or "")
+                            or "PTP Breach" in (e.log_message or "")
+                            or "pichla payment promise breach" in (e.log_message or "")
+                            or "PTP breached" in (e.log_message or "")
+                            or "Post-PTP breach" in (e.log_message or "")
+                            for e in inv.recovery_events
                         )
-                        session.add(evt)
-                        inv.recovery_events.append(evt)
-                        calls_queued.append(str(inv.id))
-                        logger.info("📞 Call queued for invoice %s (%s)", inv.id, current)
+                        if current == State.LINK_SENT and has_prior_ptp_breached:
+                            # ── Post-PTP breach 1-hour link window expired — escalate immediately ──
+                            last_disc = float(inv.recovery_events[-1].discount_offered) if inv.recovery_events else 0.0
+                            await sm.transition(
+                                target_state=State.ESCALATED_HUMAN,
+                                discount_offered=last_disc,
+                                log_message=(
+                                    "[AUTO-SCHEDULER] Post-PTP breach 1-hour payment deadline expired without payment. "
+                                    "Escalated immediately to senior financial officer."
+                                ),
+                            )
+                            inv.next_action_due_at = None
+                            inv.call_pending = False
+                            fired.append(f"{inv.id}:POST_PTP_BREACH_1HR_EXPIRED→ESCALATED_HUMAN")
+                            logger.info("🚨 Post-PTP breach 1-hour expired: Escalated to human for invoice %s", inv.id)
+                        else:
+                            # ── Standard Reminder / Link window expired — queue voice call ──────────
+                            inv.call_pending = True
+                            inv.next_action_due_at = None
+                            from app.models import RecoveryEvent
+                            import uuid as _uuid
+                            last_disc = float(inv.recovery_events[-1].discount_offered) if inv.recovery_events else 0.0
+                            evt = RecoveryEvent(
+                                id=_uuid.uuid4(),
+                                invoice_id=inv.id,
+                                current_state=current,
+                                discount_offered=last_disc,
+                                log_message=(
+                                    f"[AUTO-SCHEDULER] {current} payment window expired. "
+                                    "No payment received. Voice call queued."
+                                ),
+                                timestamp=now,
+                            )
+                            session.add(evt)
+                            inv.recovery_events.append(evt)
+                            calls_queued.append(str(inv.id))
+                            logger.info("📞 Call queued for invoice %s (%s)", inv.id, current)
 
                     elif current in (State.TIER_1_DISCOUNT, State.TIER_2_DISCOUNT):
                         # ── Discount payment window expired — queue follow-up call ─────
