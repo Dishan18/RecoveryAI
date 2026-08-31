@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { RefreshCw } from "lucide-react";
-import { api, AnalyticsOverview } from "../lib/api";
+import { api, AnalyticsOverview } from "@/lib/api";
 
 const INR = new Intl.NumberFormat("en-IN", {
   style: "currency",

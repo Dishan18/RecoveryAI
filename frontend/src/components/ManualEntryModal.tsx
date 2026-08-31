@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { api, ManualInvoiceCreatePayload } from "../lib/api";
+import { api, ManualInvoiceCreatePayload } from "@/lib/api";
 
 interface ManualEntryModalProps {
   isOpen: boolean;

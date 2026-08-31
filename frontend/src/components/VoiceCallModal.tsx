@@ -11,7 +11,7 @@ import {
   Send,
   Volume2,
 } from "lucide-react";
-import { api, Invoice, VoiceCallResponse, VoiceGreetingResponse } from "../lib/api";
+import { api, Invoice, VoiceCallResponse, VoiceGreetingResponse } from "@/lib/api";
 
 interface VoiceCallModalProps {
   invoice: Invoice;

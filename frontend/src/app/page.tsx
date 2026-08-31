@@ -23,11 +23,11 @@ import {
   OperatorOverridePayload,
   RecoveryEvent,
   SkipWaitResponse,
-} from "../lib/api";
-import { CallQueueDrawer } from "../components/CallQueueDrawer";
-import { ManualEntryModal } from "../components/ManualEntryModal";
-import { VoiceCallModal } from "../components/VoiceCallModal";
-import { AnalyticsTab } from "../components/AnalyticsTab";
+} from "@/lib/api";
+import { CallQueueDrawer } from "@/components/CallQueueDrawer";
+import { ManualEntryModal } from "@/components/ManualEntryModal";
+import { VoiceCallModal } from "@/components/VoiceCallModal";
+import { AnalyticsTab } from "@/components/AnalyticsTab";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Formatters

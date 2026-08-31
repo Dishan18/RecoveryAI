@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { Invoice } from "../lib/api";
-import { VoiceCallModal } from "./VoiceCallModal";
+import React, { useState } from "react";
+import { Invoice } from "@/lib/api";
+import { VoiceCallModal } from "@/components/VoiceCallModal";
 
 interface CallQueueDrawerProps {
   queue: Invoice[];
