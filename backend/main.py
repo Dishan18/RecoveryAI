@@ -63,13 +63,14 @@ async def add_process_time_header(request: Request, call_next):
     return response
 
 
-# ── CORS (allow Next.js dev server) ──────────────────────────────────────────
+# ── CORS (allow localhost and hosted frontend domains) ───────────────────────
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
         "http://127.0.0.1:3000",
     ],
+    allow_origin_regex=r"https?://.*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
