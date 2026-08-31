@@ -657,8 +657,12 @@ export default function OperationsConsole() {
               onClick={async () => {
                 try {
                   setSettledInvoiceIds(new Set());
+                  setCallQueue([]);
+                  setPaymentConfirmId(null);
+                  setActiveOverrideMenuId(null);
+                  setVoiceCallInvoice(null);
                   const res = await api.seed();
-                  showToast(res.message || "Database seeded with 6 initial breach recovery cases");
+                  showToast(res.message || "Database reset & seeded fresh with 6 recovery cases");
                   await loadData(true);
                 } catch (e: unknown) {
                   showToast("Error: " + (e instanceof Error ? e.message : "Error"));
