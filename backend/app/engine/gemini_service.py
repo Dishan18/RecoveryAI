@@ -733,14 +733,13 @@ def _rule_based_fallback_classification(transcript: str) -> dict:
         "kal", "कल", "parso", "parson", "परसों", "tomorrow", "day after",
         "3 din", "teen din", "तीन दिन", "3 days", "three days", "3 डेज़", "3 डेज", "थ्री डेज़", "थ्री डेज", "विदिन थ्री डेज़", "विदिन 3 डेज़",
         "2 din", "do din", "दो दिन", "2 days", "two days", "2 डेज़", "2 डेज", "टू डेज़", "टू डेज", "टु डेज़", "टु डेज",
-        "1 din", "ek din", "एक दिन", "1 day", "one day", "1 डे", "वन डे", "today", "aaj sham", "आज शाम",
+        "1 din", "ek din", "एक दिन", "1 day", "one day", "1 डे", "वन डे",
         "4 din", "char din", "चार दिन", "4 days", "4 डेज़", "4 डेज",
         "5 din", "paanch din", "panch din", "पांच दिन", "पाँच दिन", "पाँच", "पांच", "5 days", "5 डेज़", "5 डेज", "फाइव डेज़", "फाइव डेज",
         "6 din", "छह दिन", "6 days", "7 din", "saat din", "सात दिन", "7 days", "10 din", "दस दिन", "10 days", "15 din", "15 days",
         "next week", "agle hafte", "अगले हफ्ते", "नेक्स्ट वीक", "week", "hafte", "hafta", "हफ्ते",
         "salary aane par", "salary aayegi", "tareekh", "tarikh", "महीने", "month end", "agle mahine",
-        "सेटल कर दूंगा", "सेटल कर दूँगा", "settle kar dunga", "payment kar dunga", "मेक द पेमेंट", "make the payment",
-        "आई विल मेक", "विदिन", "within",
+        "विदिन", "within",
     ]
     matched_ptp = None
     for kw in ptp_keywords:
@@ -809,6 +808,8 @@ def _rule_based_fallback_classification(transcript: str) -> dict:
         "haan main", "yes i can", "i will settle", "settle kar dunga", "payment kar dunga",
         "main kar dunga", "mai kar dunga", "main kar deta", "main yeh kar", "mai yeh kar",
         "yeh kar sakta", "ye kar sakta", "yeh kar dunga", "ye kar dunga",
+        "aaj settle", "settle today", "pay today", "aaj pay", "aaj hi", "aaj kar dunga",
+        "isko aaj settle", "main isko aaj", "clearing today", "will settle today",
         # Devanagari Hindi
         "अभी पे", "abhi pe", "हाँ", "हां", "हूँ", "हूं",
         "कर सकता हूँ", "कर सकता हूं", "कर सकता", "कर सकते हैं",
@@ -816,6 +817,7 @@ def _rule_based_fallback_classification(transcript: str) -> dict:
         "यह कर सकता", "ये कर सकता", "यह पेमेंट", "ये पेमेंट", "पेमेंट कर दूंगा", "पेमेंट कर दूँगा",
         "ओके", "ठीक है", "सही है", "मंज़ूर है", "मंजूर है", "चलेगा", "डन", "सहमत",
         "पे करता हूँ", "पे कर दूंगा", "पे कर दूँगा", "दे दूंगा", "दे दूँगा", "सेटल कर दूंगा", "सेटल कर दूँगा",
+        "आज सेटल", "आज ही", "आज कर दूंगा", "आज कर दूँगा", "आज पे", "आज पेमेंट", "इसको आज सेटल",
     ]
 
     has_standalone_affirmation = bool(re.search(r"\b(ha|haan|ok|okay|yes|done|sure|agree)\b", raw))

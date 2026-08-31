@@ -522,6 +522,13 @@ class TestSplitPaymentFlow:
         res3 = asyncio.run(classify_debtor_intent("theek hai main payment kar deta hoon"))
         assert res3.intent == "PAY_NOW"
 
+        # User's latest screenshot transcript:
+        res4 = asyncio.run(classify_debtor_intent("हाँ, मैं इसको आज सेटल कर दूँगा।"))
+        assert res4.intent == "PAY_NOW"
+
+        res5 = asyncio.run(classify_debtor_intent("main isko aaj settle kar dunga"))
+        assert res5.intent == "PAY_NOW"
+
     def test_split_plan_acceptance_transitions_to_ptp_active(self):
         import asyncio
         import uuid

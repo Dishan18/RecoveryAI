@@ -360,18 +360,48 @@ export default function OperationsConsole() {
       }
       if (statsData !== null) setAnalytics(statsData);
 
-      // Auto-enqueue any backend call_pending invoices into FIFO queue
+      // Auto-enqueue any backend call_pending invoices into FIFO queue and prune resolved/completed calls
       if (invData) {
-        const pendingCalls = invData.filter((inv) => inv.call_pending && inv.status === "UNPAID");
-        if (pendingCalls.length > 0) {
-          setCallQueue((prev) => {
-            const toAdd = pendingCalls.filter((p) => !prev.some((q) => q.id === p.id));
-            return [...prev, ...toAdd];
-          });
+        setCallQueue((prev) => {
+          const validPendingMap = new Map<string, Invoice>();
+
+          // 1. Keep existing queue items that are still UNPAID and not resolved/terminal
+          for (const q of prev) {
+            const current = invData.find((i) => i.id === q.id);
+            if (current) {
+              const state = current.recovery_events?.[current.recovery_events.length - 1]?.current_state;
+              if (
+                current.status === "UNPAID" &&
+                !settledInvoiceIds.has(current.id) &&
+                state !== "PTP_ACTIVE" &&
+                state !== "LINK_SENT" &&
+                state !== "RESOLVED" &&
+                state !== "ESCALATED_HUMAN" &&
+                state !== "FROZEN_DISPUTE"
+              ) {
+                validPendingMap.set(current.id, current);
+              }
+            }
+          }
+
+          // 2. Add newly triggered call_pending invoices
+          const pendingCalls = invData.filter((inv) => inv.call_pending && inv.status === "UNPAID" && !settledInvoiceIds.has(inv.id));
           for (const p of pendingCalls) {
+            const state = p.recovery_events?.[p.recovery_events.length - 1]?.current_state;
+            if (
+              state !== "PTP_ACTIVE" &&
+              state !== "LINK_SENT" &&
+              state !== "RESOLVED" &&
+              state !== "ESCALATED_HUMAN" &&
+              state !== "FROZEN_DISPUTE"
+            ) {
+              validPendingMap.set(p.id, p);
+            }
             api.acknowledgeCallPending(p.id).catch(console.warn);
           }
-        }
+
+          return Array.from(validPendingMap.values());
+        });
       }
     } catch (err: unknown) {
       console.warn("Background sync paused (backend re-connecting)...", err);
@@ -398,10 +428,15 @@ export default function OperationsConsole() {
         const toEnqueue = freshInvoices.filter(
           (inv) =>
             res.call_triggered_ids.includes(inv.id) &&
-            !callQueue.some((q) => q.id === inv.id)
+            inv.status === "UNPAID" &&
+            !settledInvoiceIds.has(inv.id)
         );
         if (toEnqueue.length > 0) {
-          setCallQueue((prev) => [...prev, ...toEnqueue]);
+          setCallQueue((prev) => {
+            const map = new Map(prev.map((i) => [i.id, i]));
+            for (const item of toEnqueue) map.set(item.id, item);
+            return Array.from(map.values());
+          });
         }
         setInvoices(freshInvoices);
       } else {
@@ -1467,7 +1502,10 @@ export default function OperationsConsole() {
             setVoiceCallInvoice(null);
             loadData(true);
           }}
-          onStateUpdated={() => loadData(false)}
+          onStateUpdated={() => {
+            setCallQueue((prev) => prev.filter((i) => i.id !== voiceCallInvoice.id));
+            loadData(false);
+          }}
         />
       )}
     </div>
