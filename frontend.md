@@ -1,105 +1,90 @@
-# RecoveryAI Frontend Documentation
+# RecoveryAI — Frontend Engineering & Operations Console Guide
 
-> **Real-time Operations Console and Autonomous Revenue Recovery Dashboard.**
-
----
-
-## 1. Frontend Overview
-
-The RecoveryAI frontend is a Next.js 16 (App Router) single-page operations application styled with TailwindCSS and Lucide Icons. It serves as the single pane of glass for credit control and recovery operations teams, providing:
-- Real-time case tracking across the 9-state recovery Finite State Machine (FSM).
-- Active countdown timers driven by server-authoritative UTC deadlines.
-- Interactive multi-turn outbound voice call negotiation with native Sarvam AI (`bulbul-v3`) audio and live transcript history.
-- Global FIFO call queue management.
-- Anti-gaming concession visualization and preserved margin tracking.
-- Optimistic settlement with persistent lock protection against transient state rollbacks.
-- Executive Portfolio Analytics with recovery win rates and funnel drop-offs.
+> **Real-Time Operations Cockpit & Multi-Turn Voice Recovery Interface**
 
 ---
 
-## 2. Technology Stack
+## 1. Overview
+
+The RecoveryAI frontend is a Next.js 16 (App Router) single-page application engineered with TypeScript, TailwindCSS 4, and Lucide React Icons. It functions as the central operations console for credit control, collections, and financial operations teams.
+
+Key capabilities:
+- **Real-Time FSM Lifecycle Tracking**: Live monitoring across all 13 states with server-synchronized UTC deadline countdowns.
+- **2-Stage Partial & Full Payment Workflow**:
+  - `Payment Received` $\rightarrow$ Dropdown with `Half (50%)` and `Full Payment`.
+  - Recording `Half (50%)` immediately updates the balance, sets a 3-day PTP commitment, and transforms the button to a yellow `Half Paid (Click for Full)` button.
+  - Recording `Full Payment` settles the invoice completely into green `Resolved`.
+- **Interactive Multi-Turn Voice Dialog**: Outbound voice call simulation with native **Sarvam AI** (`bulbul:v3` `shubh` model) audio synthesis and real-time STT speech recognition.
+- **1-Hour Split Payment Countdown**: Dedicated 1-hour countdown display for accounts in `SPLIT_FIRST_HALF_PENDING`.
+- **Global FIFO Call Queue**: Slide-out drawer tracking debtors requiring urgent outbound voice contact.
+- **Executive Portfolio Analytics**: Telemetry for Total Recovered, Volume at Risk, Anti-Gaming Margin Preserved, Collection Win-Rates, and Pipeline Funnels.
+
+---
+
+## 2. Tech Stack
 
 | Layer | Technology | Details |
 | :--- | :--- | :--- |
 | **Framework** | Next.js 16.3.2 | App Router (`frontend/src/app`) with Turbopack |
-| **Language** | TypeScript 5.8 | Strict mode typing across all API contracts |
-| **UI Library** | React 19 | Functional components, custom hooks, and concurrent rendering |
-| **Styling** | TailwindCSS 4 | Utility-first CSS with zinc/slate neutral palette |
-| **Icons** | Lucide React | Lightweight, consistent SVG icon set |
-| **Audio** | HTML5 Audio API | Direct WAV base64 decoding and live audio playback |
-| **Speech STT** | MediaRecorder API | WebM microphone audio capture for Sarvam STT |
+| **Language** | TypeScript 5.8 | Strict type checking across all data contracts |
+| **UI Library** | React 19 | Hooks, concurrent rendering, optimistic UI state |
+| **Styling** | TailwindCSS 4 | Utility-first CSS with dark/zinc modern aesthetic |
+| **Icons** | Lucide React | Clean, scalable SVG icons |
+| **Audio** | HTML5 Audio API | Base64 WAV decoding and low-latency audio buffer replay |
+| **Microphone** | MediaRecorder API | WebM audio capture for Sarvam STT transcription |
 
 ---
 
-## 3. Frontend Project Structure
+## 3. Directory Structure
 
 ```
 frontend/
 ├── src/
 │   ├── app/
-│   │   ├── layout.tsx         # Root layout with Inter font and metadata
-│   │   ├── page.tsx           # Main Operations Console & Recovery Analytics Dashboard
-│   │   └── globals.css        # Tailwind directives and custom animation utilities
+│   │   ├── layout.tsx         # Root layout with Inter font & metadata
+│   │   ├── page.tsx           # Operations Console & KPI Dashboard
+│   │   └── globals.css        # Tailwind directives and animation utilities
 │   ├── components/
-│   │   ├── AnalyticsTab.tsx   # Executive recovery metrics, funnels & win rates
+│   │   ├── AnalyticsTab.tsx   # Recovery analytics, win-rates, and funnel progression
 │   │   ├── CallQueueDrawer.tsx# Global slide-out FIFO call queue
-│   │   ├── ManualEntryModal.tsx# Ingest custom failed invoices into active recovery
+│   │   ├── ManualEntryModal.tsx# Custom failed invoice ingestion dialog
 │   │   └── VoiceCallModal.tsx # Multi-turn outbound voice negotiation dialog
 │   └── lib/
-│       └── api.ts             # Strongly typed REST client for all backend endpoints
-├── public/
-│   ├── file.svg
-│   ├── globe.svg
-│   ├── next.svg
-│   ├── vercel.svg
-│   └── window.svg
-├── .env.local.example         # Secret-free frontend environment template
-├── .env.local                 # Local API connection config (git-ignored)
+│       └── api.ts             # Strongly typed REST client for backend endpoints
 ├── next.config.ts             # Next.js configuration
 ├── package.json               # Node package manifest
-├── tsconfig.json              # TypeScript compiler settings
-└── postcss.config.mjs         # PostCSS configuration
+└── tsconfig.json              # TypeScript compiler settings
 ```
 
 ---
 
-## 4. Application Entry Point & Navigation
-
-- **Entry Point (`src/app/layout.tsx`)**: Wraps the application with global typography (`Inter` font), viewport definitions, and responsive containers.
-- **Main View (`src/app/page.tsx`)**:
-  - Top Navigation Bar: Seed Database, Fast Forward All, Run Batch Simulation, + Manual Entry, and Refresh.
-  - Tab Switcher:
-    1. **Operations Console**: Live recovery case table, KPI summary cards, FIFO call queue, and recent agent activity feed.
-    2. **Recovery Analytics**: Macro-level portfolio recovery rate, gross recovered, preserved margin, failure win-rates, and funnel progression.
-
----
-
-## 5. Key UI Components
+## 4. Core Workflows & UI Components
 
 ### 1. Operations Case Table (`src/app/page.tsx`)
-- **Interactive Rows**: Displays Customer, Failure Reason, Gross Amount in INR (₹), Autonomous State Badge, Dynamic Concession Floor, and Active Countdown.
-- **Optimistic Settlement**: Instant zero-millisecond green confirmation badge upon clicking "Confirm Payment", protected by `settledInvoiceIds` state to prevent transient polling rollback.
-- **Step Fast-Forwarding**: Individual "Skip Wait" buttons to advance a single invoice by one autonomous step without waiting for real-world timers.
+- **Live Cases**: Renders debtor name, failure reason, gross amount, remaining balance, active state badge, authorized concession floor, and countdown timers.
+- **2-Stage Payment Recording**:
+  - `Payment Received` button opens a popover: `Half (50%)` or `Full Payment`.
+  - Clicking `Half (50%)` triggers an optimistic zero-latency update: increments total recovered KPI, sets remaining balance to 50%, and switches the button to yellow `Half Paid (Click for Full)`.
+  - Clicking the yellow button allows recording the remaining 50% to transition the invoice to green `Resolved`.
 
 ### 2. Multi-Turn Voice Call Modal (`src/components/VoiceCallModal.tsx`)
-- **Outbound Opening**: Automatically fetches and plays Sarvam `bulbul-v3` (`shubh` voice model) audio greeting stating the debtor name, merchant name, amount due, and reason.
-- **Microphone Recording**: Uses `navigator.mediaDevices.getUserMedia` and `MediaRecorder` to send WebM audio to `/api/invoices/{id}/voice/transcribe-and-reply`.
-- **Hinglish Quick Prompts**: Provides instant simulation buttons for 10 realistic debtor negotiation scenarios (e.g. 3-day PTP, 5-day PTP refusal, 5% discount rejection, GST billing dispute).
-- **Universal Replay**: Allows re-listening to any turn's high-fidelity audio buffer.
+- **Outbound Opening**: Fetches and autoplays high-fidelity Sarvam AI audio greeting (`shubh` voice model) stating the debtor name, merchant name, amount due, and reason.
+- **Live Audio Recording**: Captures debtor microphone input and streams WebM audio to `/api/invoices/{id}/voice/transcribe-and-reply`.
+- **Hinglish Quick Simulation Prompts**: Provides instant simulation buttons for 10 realistic debtor negotiation scenarios (e.g. Split request, 50% discount request, dispute, promise to pay).
+- **Turn Audio Replay**: Direct replay button for every turn's synthesized speech.
 
 ### 3. Global Call Queue Drawer (`src/components/CallQueueDrawer.tsx`)
-- Slide-out drawer tracking all debtor accounts marked `call_pending = True` by the autonomous backend scheduler.
-- Direct "Start Call" triggers opening `VoiceCallModal`.
+- Slide-out drawer displaying all accounts with `call_pending = True`.
+- Provides 1-click `Start Call` triggers that immediately open the voice modal.
 
 ### 4. Recovery Analytics Tab (`src/components/AnalyticsTab.tsx`)
-- **Summary Cards**: Total at Risk, Total Recovered, Margin Preserved via Anti-Gaming rules, and Collection Rate.
-- **Funnel Progression**: Visual stage-by-stage pipeline drop-off (Ingested $\rightarrow$ WhatsApp Reminders $\rightarrow$ Voice Calls $\rightarrow$ PTP Agreed $\rightarrow$ Resolved).
-- **Win Rate by Failure Category**: Win rates for `GATEWAY_TIMEOUT`, `INSUFFICIENT_FUNDS`, `MANDATE_DECLINE`, `EXPIRED_CARD`, and `DISPUTED_AMOUNT`.
-- **Concession Ladder Distribution**: Volume breakdown across Full Price (0%), Tier 1 (5%), Tier 2 (8%), and Tier 3 (10%).
+- **Executive KPIs**: Total at Risk, Total Recovered (aggregating full and partial payments), Margin Preserved via Anti-Gaming, and Collection Rate %.
+- **Funnel Progression**: Visual pipeline tracking from Ingested $\rightarrow$ WhatsApp Reminders $\rightarrow$ Voice Calls $\rightarrow$ PTP Agreed $\rightarrow$ Resolved.
+- **Win Rate by Failure Reason**: Granular recovery metrics across `GATEWAY_TIMEOUT`, `INSUFFICIENT_FUNDS`, `MANDATE_DECLINE`, `EXPIRED_CARD`, and `DISPUTED_AMOUNT`.
 
 ---
 
-## 6. Server Truth vs. Client Countdown Architecture
+## 5. Server Truth vs. Client Countdown Architecture
 
 ```
 [ PostgreSQL TIMESTAMPTZ (next_action_due_at) ]
@@ -108,39 +93,25 @@ frontend/
              [ Frontend Invoice State ]
                        │
                        ▼
-      [ Client setInterval Tick (1,000ms) ]
-      Computes: Math.max(0, targetTime - Date.now())
+       [ Client setInterval Tick (1,000ms) ]
+       Computes: Math.max(0, targetTime - Date.now())
                        │
                        ▼
          [ Renders MM:SS Countdown Badge ]
 ```
 
-1. **Server Truth**: The exact deadline is computed and stored as an immutable UTC `TIMESTAMPTZ` in PostgreSQL.
-2. **Client Display**: A 1-second `setInterval` hook updates local state to render a smooth `MM:SS` countdown.
-3. **Expiry Handshake**: When the countdown reaches `00:00`, the autonomous backend scheduler (`app/scheduler.py`) evaluates the expired row and advances the state machine.
+- **Server Truth**: The exact deadline is stored in PostgreSQL as UTC `TIMESTAMPTZ`.
+- **Client Rendering**: A 1-second `setInterval` hook updates local state to render smooth `MM:SS` countdowns.
+- **Autonomous Triggering**: When the timer reaches `00:00`, the background worker (`app/scheduler.py`) evaluates the expired row and advances the state machine.
 
 ---
 
-## 7. API Communication Layer (`src/lib/api.ts`)
-
-Encapsulates all typed HTTP calls to the FastAPI backend:
-- `api.invoices()`: Fetch active recovery cases.
-- `api.seed()`: Populate 6 representative test scenarios.
-- `api.skipWait(invoiceId)`: Advance a single case by one step.
-- `api.fastForward(minutes, invoiceId, allCases)`: Wind back stored deadlines in bulk.
-- `api.voiceGreeting(invoiceId)`: Fetch outbound voice greeting text and audio base64.
-- `api.voiceCall(invoiceId, audioBlob, textFallback)`: Submit multi-turn voice turn.
-- `api.operatorOverride(invoiceId, payload)`: Manual state transition with operator rationale.
-- `api.analyticsSummary()` / `api.analyticsOverview()`: Portfolio analytics.
-
----
-
-## 8. Running Frontend Locally
+## 6. Running Frontend Locally
 
 ```bash
 cd frontend
 
-# Install dependencies (if first time)
+# Install dependencies
 npm install
 
 # Start Next.js development server with Turbopack
@@ -151,7 +122,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ---
 
-## 9. Production Build
+## 7. Production Build
 
 ```bash
 cd frontend
