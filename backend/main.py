@@ -77,6 +77,18 @@ app.add_middleware(
 )
 
 # ── Routes ────────────────────────────────────────────────────────────────────
+@app.get("/", tags=["Meta"], summary="Root endpoint")
+async def root() -> dict:
+    """Root landing endpoint for Render health probes and service status."""
+    return {
+        "status": "healthy",
+        "service": "RecoveryAI Backend",
+        "version": settings.APP_VERSION,
+        "docs": "/docs",
+        "health": "/health",
+    }
+
+
 @app.get("/health", tags=["Meta"], summary="Health check")
 async def health() -> dict:
     """Liveness probe — returns service status."""
