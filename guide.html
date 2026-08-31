@@ -1,0 +1,2004 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RecoveryAI - System Architecture & Operations Guide</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-primary: #fbfbfb;
+      --bg-surface: #ffffff;
+      --bg-subtle: #f4f4f5;
+      --border-color: #e4e4e7;
+      --border-subtle: #f0f0f2;
+      --text-main: #18181b;
+      --text-muted: #52525b;
+      --text-subtle: #71717a;
+      --accent: #2563eb;
+      --accent-light: #eff6ff;
+      --accent-border: #bfdbfe;
+      --success: #059669;
+      --success-light: #ecfdf5;
+      --success-border: #a7f3d0;
+      --warning: #d97706;
+      --warning-light: #fffbeb;
+      --warning-border: #fde68a;
+      --danger: #dc2626;
+      --danger-light: #fef2f2;
+      --danger-border: #fecaca;
+      --sidebar-width: 280px;
+      --radius-sm: 4px;
+      --radius-md: 6px;
+      --radius-lg: 8px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background-color: var(--bg-primary);
+      color: var(--text-main);
+      line-height: 1.6;
+      font-size: 14px;
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* ── Sidebar ────────────────────────────────────────────────────────── */
+    #sidebar {
+      width: var(--sidebar-width);
+      background-color: var(--bg-surface);
+      border-right: 1px solid var(--border-color);
+      height: 100vh;
+      position: fixed;
+      top: 0;
+      left: 0;
+      overflow-y: auto;
+      display: flex;
+      flex-col: column;
+      flex-direction: column;
+      z-index: 50;
+    }
+
+    .sidebar-header {
+      padding: 20px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .brand-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      letter-spacing: -0.01em;
+    }
+
+    .brand-badge {
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 6px;
+      border-radius: var(--radius-sm);
+      background-color: var(--accent-light);
+      color: var(--accent);
+      border: 1px solid var(--accent-border);
+      text-transform: uppercase;
+    }
+
+    .brand-sub {
+      font-size: 11px;
+      color: var(--text-subtle);
+      margin-top: 4px;
+    }
+
+    .sidebar-search {
+      padding: 12px 20px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .sidebar-search input {
+      width: 100%;
+      padding: 7px 10px;
+      font-size: 12px;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      background-color: var(--bg-subtle);
+      color: var(--text-main);
+      outline: none;
+    }
+
+    .sidebar-search input:focus {
+      border-color: var(--accent);
+      background-color: var(--bg-surface);
+    }
+
+    .nav-sections {
+      padding: 12px 10px;
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .nav-group-title {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-subtle);
+      padding: 10px 10px 4px 10px;
+    }
+
+    .nav-link {
+      display: block;
+      padding: 6px 10px;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 12px;
+      font-weight: 500;
+      border-radius: var(--radius-sm);
+      transition: all 0.15s ease;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .nav-link:hover {
+      background-color: var(--bg-subtle);
+      color: var(--text-main);
+    }
+
+    .nav-link.active {
+      background-color: var(--accent-light);
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    /* ── Main Content Area ──────────────────────────────────────────────── */
+    #main-content {
+      margin-left: var(--sidebar-width);
+      flex: 1;
+      max-width: 1060px;
+      padding: 40px 48px 80px 48px;
+    }
+
+    header.doc-header {
+      margin-bottom: 40px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .doc-category {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--accent);
+      margin-bottom: 6px;
+    }
+
+    h1 {
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: var(--text-main);
+      margin-bottom: 8px;
+    }
+
+    .lead-text {
+      font-size: 15px;
+      color: var(--text-muted);
+      max-width: 800px;
+    }
+
+    h2 {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.015em;
+      color: var(--text-main);
+      margin: 48px 0 16px 0;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    h3 {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-main);
+      margin: 28px 0 12px 0;
+    }
+
+    h4 {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      margin: 20px 0 8px 0;
+    }
+
+    p {
+      margin-bottom: 14px;
+      color: var(--text-muted);
+    }
+
+    strong {
+      color: var(--text-main);
+      font-weight: 600;
+    }
+
+    /* ── Callout Boxes ──────────────────────────────────────────────────── */
+    .callout {
+      padding: 14px 16px;
+      border-radius: var(--radius-md);
+      margin: 18px 0;
+      font-size: 13px;
+      border: 1px solid var(--border-color);
+      background-color: var(--bg-surface);
+    }
+
+    .callout.info {
+      border-color: var(--accent-border);
+      background-color: var(--accent-light);
+      color: #1e40af;
+    }
+
+    .callout.success {
+      border-color: var(--success-border);
+      background-color: var(--success-light);
+      color: #065f46;
+    }
+
+    .callout.warning {
+      border-color: var(--warning-border);
+      background-color: var(--warning-light);
+      color: #92400e;
+    }
+
+    .callout.danger {
+      border-color: var(--danger-border);
+      background-color: var(--danger-light);
+      color: #991b1b;
+    }
+
+    .callout-title {
+      font-weight: 700;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* ── Cards & Grid ───────────────────────────────────────────────────── */
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+      margin: 20px 0;
+    }
+
+    .card {
+      background-color: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 18px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+    }
+
+    .card-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-main);
+      margin-bottom: 6px;
+    }
+
+    .card-meta {
+      font-size: 11px;
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--text-subtle);
+      margin-bottom: 10px;
+    }
+
+    /* ── Tables ─────────────────────────────────────────────────────────── */
+    .table-container {
+      width: 100%;
+      overflow-x: auto;
+      margin: 20px 0;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      background-color: var(--bg-surface);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      text-align: left;
+    }
+
+    th {
+      background-color: var(--bg-subtle);
+      color: var(--text-main);
+      font-weight: 600;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border-color);
+      white-space: nowrap;
+    }
+
+    td {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+      vertical-align: top;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    tr:hover td {
+      background-color: #fafafa;
+    }
+
+    /* ── Code & Pre ─────────────────────────────────────────────────────── */
+    code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      padding: 2px 5px;
+      border-radius: var(--radius-sm);
+      background-color: var(--bg-subtle);
+      color: #0f172a;
+      border: 1px solid #e2e8f0;
+    }
+
+    pre {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      background-color: #18181b;
+      color: #f4f4f5;
+      padding: 16px 20px;
+      border-radius: var(--radius-md);
+      overflow-x: auto;
+      margin: 16px 0;
+      line-height: 1.5;
+      border: 1px solid #27272a;
+      position: relative;
+    }
+
+    pre code {
+      background-color: transparent;
+      padding: 0;
+      border: none;
+      color: inherit;
+      font-size: inherit;
+    }
+
+    .code-badge {
+      position: absolute;
+      top: 8px;
+      right: 12px;
+      font-size: 10px;
+      text-transform: uppercase;
+      color: #a1a1aa;
+      font-weight: 600;
+      font-family: 'Inter', sans-serif;
+    }
+
+    /* ── Badges & Tags ──────────────────────────────────────────────────── */
+    .status-badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 600;
+      font-family: 'JetBrains Mono', monospace;
+      padding: 2px 7px;
+      border-radius: var(--radius-sm);
+      border: 1px solid transparent;
+    }
+
+    .badge-unpaid { background-color: var(--danger-light); color: var(--danger); border-color: var(--danger-border); }
+    .badge-resolved { background-color: var(--success-light); color: var(--success); border-color: var(--success-border); }
+    .badge-dispute { background-color: var(--warning-light); color: var(--warning); border-color: var(--warning-border); }
+    .badge-escalated { background-color: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+    .badge-ptp { background-color: var(--accent-light); color: var(--accent); border-color: var(--accent-border); }
+    .badge-active { background-color: #f3e8ff; color: #7e22ce; border-color: #e9d5ff; }
+
+    /* ── Diagram Elements ───────────────────────────────────────────────── */
+    .pipeline-diagram {
+      background-color: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 24px;
+      margin: 20px 0;
+      overflow-x: auto;
+    }
+
+    .flow-step {
+      display: flex;
+      align-items: flex-start;
+      margin-bottom: 16px;
+      position: relative;
+    }
+
+    .flow-num {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background-color: var(--accent);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-right: 14px;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .flow-body {
+      flex: 1;
+    }
+
+    .flow-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-main);
+      margin-bottom: 2px;
+    }
+
+    .flow-desc {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    /* ── Interactive Calculator Widget ──────────────────────────────────── */
+    .calculator-widget {
+      background-color: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 20px;
+      margin: 24px 0;
+    }
+
+    .calc-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .calc-field label {
+      display: block;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+      text-transform: uppercase;
+    }
+
+    .calc-field input, .calc-field select {
+      width: 100%;
+      padding: 8px 10px;
+      font-size: 13px;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      background-color: var(--bg-subtle);
+    }
+
+    .calc-output {
+      border-top: 1px solid var(--border-color);
+      padding-top: 14px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      font-size: 12px;
+    }
+
+    .calc-tier-box {
+      padding: 12px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-color);
+      background-color: var(--bg-subtle);
+    }
+
+    .calc-tier-box.active {
+      border-color: var(--accent-border);
+      background-color: var(--accent-light);
+    }
+
+    .calc-tier-box.blocked {
+      opacity: 0.6;
+      border-style: dashed;
+    }
+
+    /* ── Accordion / Details ────────────────────────────────────────────── */
+    details {
+      background-color: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      margin: 10px 0;
+      padding: 10px 14px;
+    }
+
+    details summary {
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      color: var(--text-main);
+      user-select: none;
+      outline: none;
+    }
+
+    details[open] summary {
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    /* ── Responsive ─────────────────────────────────────────────────────── */
+    @media (max-width: 900px) {
+      body {
+        flex-direction: column;
+      }
+      #sidebar {
+        width: 100%;
+        height: auto;
+        position: relative;
+        border-right: none;
+        border-bottom: 1px solid var(--border-color);
+      }
+      #main-content {
+        margin-left: 0;
+        padding: 24px 20px;
+      }
+      .calc-row {
+        grid-template-columns: 1fr;
+      }
+      .calc-output {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── Left Sidebar Navigation ──────────────────────────────────────────── -->
+  <aside id="sidebar">
+    <div class="sidebar-header">
+      <div class="brand-title">
+        RecoveryAI <span class="brand-badge">Engine Core</span>
+      </div>
+      <div class="brand-sub">Autonomous B2B Payment Recovery</div>
+    </div>
+
+    <div class="sidebar-search">
+      <input type="text" id="nav-filter" placeholder="Filter documentation (e.g. FSM, STT, PTP)..." oninput="filterNav()">
+    </div>
+
+    <nav class="nav-sections" id="nav-list">
+      <div class="nav-group-title">Executive & Concepts</div>
+      <a href="#executive-summary" class="nav-link">1. Executive Overview</a>
+      <a href="#quick-start-5min" class="nav-link">2. RecoveryAI in 5 Minutes</a>
+      <a href="#complete-pipeline" class="nav-link">3. The Complete Pipeline</a>
+      <a href="#lifecycle-trace" class="nav-link">4. New Customer Entry Lifecycle</a>
+
+      <div class="nav-group-title">Decision & Policy Engines</div>
+      <a href="#agent-brain" class="nav-link">5. Agent Brain & Guardrails</a>
+      <a href="#decision-engine" class="nav-link">6. Decision Engine & Scoring</a>
+      <a href="#concession-calculator" class="nav-link">7. Concession Ladder & Anti-Gaming</a>
+      <a href="#customer-history" class="nav-link">8. Customer Historical Signals</a>
+      <a href="#merchant-policy" class="nav-link">9. Merchant Policy Configuration</a>
+
+      <div class="nav-group-title">Finite State Machine & Automation</div>
+      <a href="#state-machine" class="nav-link">10. Finite State Machine (FSM)</a>
+      <a href="#autonomous-scheduler" class="nav-link">11. Autonomous Scheduler & Deadlines</a>
+      <a href="#real-time-countdowns" class="nav-link">12. Real-Time Countdown Engine</a>
+      <a href="#fast-forward-engine" class="nav-link">13. Fast-Forward & Simulation</a>
+      <a href="#call-queue-subsystem" class="nav-link">14. Call Queue Subsystem</a>
+
+      <div class="nav-group-title">Voice & AI Pipeline</div>
+      <a href="#voice-pipeline" class="nav-link">15. Multilingual Voice Agent</a>
+      <a href="#gemini-llm-service" class="nav-link">16. Gemini Intent & Dunning Copy</a>
+      <a href="#sarvam-speech-service" class="nav-link">17. Sarvam STT & TTS Audio Cache</a>
+
+      <div class="nav-group-title">Execution Traces & Scenarios</div>
+      <a href="#scenario-clean-full-price" class="nav-link">18. Trace A: Clean Full-Price Payment</a>
+      <a href="#scenario-discount-ladder" class="nav-link">19. Trace B: Concession Negotiation</a>
+      <a href="#scenario-ptp-commitment" class="nav-link">20. Trace C: Promise-to-Pay (PTP)</a>
+      <a href="#scenario-billing-dispute" class="nav-link">21. Trace D: Dispute Freezing</a>
+
+      <div class="nav-group-title">Database & Infrastructure</div>
+      <a href="#database-schema" class="nav-link">22. Database Schema & Tables</a>
+      <a href="#database-lifecycle" class="nav-link">23. Migrations & Supabase DDL</a>
+      <a href="#api-reference" class="nav-link">24. API Reference & Endpoints</a>
+      <a href="#frontend-architecture" class="nav-link">25. Next.js Frontend Architecture</a>
+      <a href="#project-tree" class="nav-link">26. Codebase File Structure</a>
+
+      <div class="nav-group-title">Operations & Safety</div>
+      <a href="#operator-overrides" class="nav-link">27. Manual Operator Overrides</a>
+      <a href="#audit-logging" class="nav-link">28. Immutable Audit Trail</a>
+      <a href="#observability-analytics" class="nav-link">29. Analytics & Preserved Margin</a>
+      <a href="#failure-handling" class="nav-link">30. Fault Tolerance & Fallbacks</a>
+      <a href="#implementation-matrix" class="nav-link">31. Current vs Planned Matrix</a>
+
+      <div class="nav-group-title">Developer Guide</div>
+      <a href="#starting-from-zero" class="nav-link">32. Starting From Zero (Setup)</a>
+      <a href="#environment-variables" class="nav-link">33. Environment Variables</a>
+      <a href="#troubleshooting" class="nav-link">34. Practical Troubleshooting</a>
+      <a href="#glossary" class="nav-link">35. Technical & Business Glossary</a>
+    </nav>
+  </aside>
+
+  <!-- ── Main Documentation Content ───────────────────────────────────────── -->
+  <main id="main-content">
+    
+    <header class="doc-header">
+      <div class="doc-category">System Architecture & Operations Reference</div>
+      <h1>RecoveryAI - Autonomous B2B Payment Recovery</h1>
+      <p class="lead-text">
+        The authoritative, comprehensive guide to the RecoveryAI autonomous recovery engine, deterministic state machine, bounded concession calculator, multilingual voice pipeline, and Supabase PostgreSQL persistence layer.
+      </p>
+    </header>
+
+    <!-- ── 1. Executive Summary ─────────────────────────────────────────── -->
+    <section id="executive-summary">
+      <h2>1. Executive Overview</h2>
+      <p>
+        In modern commerce, when an invoice or recurring debit fails due to an expired mandate, card timeout, or temporary liquidity crunch, traditional financial tools stop at a single dead end: <code>PAYMENT FAILED</code>. The debt is dumped into a spreadsheet for manual follow-up weeks later, resulting in high write-offs, margin bleed, and broken customer relationships.
+      </p>
+      <p>
+        <strong>RecoveryAI</strong> solves this by closing the autonomous revenue recovery loop:
+      </p>
+      
+      <div class="card-grid">
+        <div class="card">
+          <div class="card-title">1. Detect & Ingest</div>
+          <p class="card-meta">Real-time webhook / API ingestion</p>
+          <p>Instantly captures the failed payment event (e.g. ₹45,000 via UPI Autopay) and loads customer risk profile and merchant policy.</p>
+        </div>
+        <div class="card">
+          <div class="card-title">2. Diagnose & Schedule</div>
+          <p class="card-meta">Root-cause classification</p>
+          <p>Identifies whether the failure was technical (gateway timeout) or liquidity-driven, generating personalized WhatsApp reminders and scheduling exact follow-ups.</p>
+        </div>
+        <div class="card">
+          <div class="card-title">3. Bounded Negotiation</div>
+          <p class="card-meta">Anti-gaming concession engine</p>
+          <p>Places natural Hinglish/English outbound AI voice calls to negotiate promises-to-pay (PTP) or step through strict merchant-capped discount tiers (5% → 8% → 10%).</p>
+        </div>
+        <div class="card">
+          <div class="card-title">4. Reconcile or Escalate</div>
+          <p class="card-meta">Deterministic FSM settlement</p>
+          <p>Dispatches payment links, confirms settlements, freezes disputes for human finance review, or escalates chronic refusals to senior officers.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 2. RecoveryAI in 5 Minutes ───────────────────────────────────── -->
+    <section id="quick-start-5min">
+      <h2>2. RecoveryAI in 5 Minutes (Non-Technical Explanation)</h2>
+      <p>
+        Imagine a tireless, senior credit officer who monitors every single invoice across your business 24/7. When a customer’s payment fails:
+      </p>
+      <ol style="margin-left: 20px; margin-bottom: 16px; color: var(--text-muted);">
+        <li style="margin-bottom: 6px;"><strong>Memory:</strong> She checks who the customer is, their lifetime spend (LTV), and whether they have a habit of asking for discounts every month.</li>
+        <li style="margin-bottom: 6px;"><strong>Diagnosis:</strong> She figures out <em>why</em> it failed—was it a temporary bank server glitch, or does the customer not have enough cash today?</li>
+        <li style="margin-bottom: 6px;"><strong>Timing:</strong> Instead of spamming them immediately, she waits the exact right number of minutes before sending a polite WhatsApp message with a direct UPI payment link.</li>
+        <li style="margin-bottom: 6px;"><strong>Voice Call:</strong> If no payment arrives, she calls the debtor in fluent, natural conversational Hinglish or English to discuss the invoice.</li>
+        <li style="margin-bottom: 6px;"><strong>Strict Rules:</strong> If the customer asks for a discount, she does <em>not</em> invent random numbers. She follows the merchant’s hard rules: offering 5% first, 8% next, and stopping completely if the customer has abused discounts before.</li>
+        <li style="margin-bottom: 6px;"><strong>Escalation:</strong> If the customer disputes the bill amount (e.g. GST error), she immediately pauses outreach and routes the dossier to human finance.</li>
+      </ol>
+      <div class="callout info">
+        <div class="callout-title">The Golden Principle</div>
+        RecoveryAI prioritizes collecting 100% of the invoice first. It only sacrifices margin when customer behavior and merchant policies strictly justify it, preventing opportunistic debtors from gaming the system.
+      </div>
+    </section>
+
+    <!-- ── 3. The Complete Pipeline ────────────────────────────────────── -->
+    <section id="complete-pipeline">
+      <h2>3. The Complete Current Pipeline</h2>
+      <p>
+        Below is the exact architectural pipeline implemented in RecoveryAI, spanning the FastAPI backend, Gemini 3.6 Flash intent layer, Sarvam AI speech synthesis, and PostgreSQL database:
+      </p>
+
+      <div class="pipeline-diagram">
+        <div class="flow-step">
+          <div class="flow-num">1</div>
+          <div class="flow-body">
+            <div class="flow-title">Payment Failure / Invoice Ingestion</div>
+            <div class="flow-desc">Invoice record created with status <code>UNPAID</code>, state <code>TRIGGERED</code>, and <code>next_action_due_at = now + 10 min</code>.</div>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-num">2</div>
+          <div class="flow-body">
+            <div class="flow-title">Profile Lookup & Root-Cause Diagnosis</div>
+            <div class="flow-desc">Loads <code>Customer</code> (LTV, consecutive discount months) and <code>Merchant</code> (default discount cap). Categorizes failure reason (<code>GATEWAY_TIMEOUT</code>, <code>INSUFFICIENT_FUNDS</code>, <code>MANDATE_DECLINE</code>, etc.).</div>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-num">3</div>
+          <div class="flow-body">
+            <div class="flow-title">Autonomous WhatsApp / SMS Reminder Dispatch</div>
+            <div class="flow-desc">Scheduler fires when deadline expires → calls Gemini to generate empathetic dunning copy → transitions to <code>REMINDER_SENT</code> → schedules next 10-minute timer.</div>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-num">4</div>
+          <div class="flow-body">
+            <div class="flow-title">Call Queue Enqueueing</div>
+            <div class="flow-desc">If reminder deadline expires without payment, scheduler sets <code>call_pending = true</code>, inserting the invoice into the live global voice call queue.</div>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-num">5</div>
+          <div class="flow-body">
+            <div class="flow-title">Outbound Voice Interaction (Sarvam + Gemini)</div>
+            <div class="flow-desc">Sarvam <code>bulbul-v3</code> plays spoken opening greeting. Debtor replies via audio/text. Sarvam <code>saaras-v3</code> transcribes speech, and Gemini parses debtor intent.</div>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-num">6</div>
+          <div class="flow-body">
+            <div class="flow-title">Deterministic Concession Ladder / State Transition</div>
+            <div class="flow-desc">Based on intent: PTP commitment recorded (<code>PTP_ACTIVE</code>), billing dispute frozen (<code>FROZEN_DISPUTE</code>), payment link dispatched (<code>LINK_SENT</code>), or discount ladder climbed (<code>TIER_1_DISCOUNT</code> → <code>TIER_2_DISCOUNT</code> → <code>TIER_3_FLOOR</code>).</div>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-num">7</div>
+          <div class="flow-body">
+            <div class="flow-title">Settlement Reconciliation & Audit Appending</div>
+            <div class="flow-desc">Invoice marked <code>RESOLVED</code> upon payment. An immutable audit record is appended to <code>recovery_events</code> with exact financial and conversational rationale.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 4. Lifecycle Trace ──────────────────────────────────────────── -->
+    <section id="lifecycle-trace">
+      <h2>4. New Customer Entry Lifecycle (Step-by-Step)</h2>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Step</th>
+              <th>System Actor</th>
+              <th>Action & Technical Execution</th>
+              <th>Database Mutation</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>01</strong></td>
+              <td>Gateway / Ingestion</td>
+              <td><code>POST /api/invoices</code> receives customer name, amount in INR, failure reason.</td>
+              <td>Inserts <code>invoices</code> (UNPAID, call_pending=false).</td>
+            </tr>
+            <tr>
+              <td><strong>02</strong></td>
+              <td>FSM Initializer</td>
+              <td>Creates initial root recovery event with state <code>TRIGGERED</code>.</td>
+              <td>Inserts <code>recovery_events</code> (TRIGGERED, discount=0.0).</td>
+            </tr>
+            <tr>
+              <td><strong>03</strong></td>
+              <td>Scheduler Engine</td>
+              <td>Calculates initial intervention deadline: <code>next_action_due_at = now + 10m</code>.</td>
+              <td>Updates <code>invoices.next_action_due_at</code>.</td>
+            </tr>
+            <tr>
+              <td><strong>04</strong></td>
+              <td>Autonomous Worker</td>
+              <td><code>process_expired_deadlines()</code> detects expired timer.</td>
+              <td>Reads invoice with relations via <code>selectinload</code>.</td>
+            </tr>
+            <tr>
+              <td><strong>05</strong></td>
+              <td>Gemini Service</td>
+              <td><code>generate_dunning_copy()</code> crafts personalized reminder subject/body.</td>
+              <td>Deterministic fallback if Gemini rate-limited/offline.</td>
+            </tr>
+            <tr>
+              <td><strong>06</strong></td>
+              <td>FSM Transition</td>
+              <td>Transitions <code>TRIGGERED → REMINDER_SENT</code>. Schedules 10m call timer.</td>
+              <td>Inserts <code>recovery_events</code> (REMINDER_SENT).</td>
+            </tr>
+            <tr>
+              <td><strong>07</strong></td>
+              <td>Call Queue Worker</td>
+              <td>10m timer expires with no payment. Sets <code>call_pending = true</code>.</td>
+              <td>Updates <code>invoices.call_pending = true</code>.</td>
+            </tr>
+            <tr>
+              <td><strong>08</strong></td>
+              <td>Voice Agent</td>
+              <td>Operator opens call modal. <code>POST /api/invoices/{id}/voice/greeting</code> runs.</td>
+              <td>Returns Sarvam TTS audio buffer.</td>
+            </tr>
+            <tr>
+              <td><strong>09</strong></td>
+              <td>Debtor Speech Input</td>
+              <td>Debtor speaks into microphone (e.g. "I need 3 days to pay").</td>
+              <td>Captured as <code>audio/webm</code> blob.</td>
+            </tr>
+            <tr>
+              <td><strong>10</strong></td>
+              <td>Sarvam STT</td>
+              <td><code>saaras-v3</code> model transcribes audio to Hinglish/English text.</td>
+              <td>Returns transcript with confidence score.</td>
+            </tr>
+            <tr>
+              <td><strong>11</strong></td>
+              <td>Gemini Intent Parser</td>
+              <td><code>parse_debtor_message()</code> extracts intent (<code>PROMISE_TO_PAY</code>) & ISO deadline.</td>
+              <td>Returns structured Pydantic intent payload.</td>
+            </tr>
+            <tr>
+              <td><strong>12</strong></td>
+              <td>FSM State Transition</td>
+              <td>Transitions <code>REMINDER_SENT → PTP_ACTIVE</code>. Pauses outreach until deadline.</td>
+              <td>Inserts <code>recovery_events</code> (PTP_ACTIVE, ptp_deadline).</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ── 5. Agent Brain & Guardrails ──────────────────────────────────── -->
+    <section id="agent-brain">
+      <h2>5. The Agent Brain Architecture & Guardrails</h2>
+      <p>
+        A core design flaw in naive AI agents is granting an LLM direct, unconstrained authority to modify database balances or invent discount percentages. In RecoveryAI, the architecture enforces strict separation of concerns:
+      </p>
+
+      <div class="pipeline-diagram">
+        <div class="flow-step">
+          <div class="flow-num" style="background-color: #6366f1;">A</div>
+          <div class="flow-body">
+            <div class="flow-title">1. LLM Cognitive Layer (Gemini 3.6 Flash)</div>
+            <div class="flow-desc"><strong>Role:</strong> Natural language understanding and copy generation ONLY. Classifies intent from transcripts, extracts proposed dates, and crafts conversational Hinglish text. Has ZERO authority to mutate database state or approve discounts.</div>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-num" style="background-color: #059669;">B</div>
+          <div class="flow-body">
+            <div class="flow-title">2. Deterministic Decision Engine</div>
+            <div class="flow-desc"><strong>Role:</strong> Pure Python mathematical logic. Evaluates risk profile, root-cause compatibility, historical recovery rates, and selects candidate actions.</div>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-num" style="background-color: #d97706;">C</div>
+          <div class="flow-body">
+            <div class="flow-title">3. Policy Engine & Anti-Gaming Calculator</div>
+            <div class="flow-desc"><strong>Role:</strong> Enforces merchant caps and customer historical penalties. Clamps discount rates, blocks higher tiers for repeat exploiters, and ensures margin preservation.</div>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-num" style="background-color: #dc2626;">D</div>
+          <div class="flow-body">
+            <div class="flow-title">4. Finite State Machine (FSM) & Persistence</div>
+            <div class="flow-desc"><strong>Role:</strong> Validates transitions against a strict directional graph. Appends immutable records to PostgreSQL and syncs invoice status.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 6. Decision Engine & Scoring ─────────────────────────────────── -->
+    <section id="decision-engine">
+      <h2>6. Deterministic Decision Engine & Scoring</h2>
+      <p>
+        When an invoice failure is diagnosed, RecoveryAI evaluates candidate actions based on root-cause category, customer LTV, and historical reliability:
+      </p>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Failure Reason</th>
+              <th>Primary Diagnostic Action</th>
+              <th>Business & Operational Rationale</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>GATEWAY_TIMEOUT</code></td>
+              <td><strong>SEND_LINK</strong></td>
+              <td>Technical failure at card/bank gateway. Customer has funds; immediate alternate link resolves case with 0% margin loss.</td>
+            </tr>
+            <tr>
+              <td><code>INSUFFICIENT_FUNDS</code></td>
+              <td><strong>SET_PTP</strong></td>
+              <td>Liquidity timing mismatch. Offering immediate discounts rewards poor planning; securing a 3-day promise-to-pay recovers 100% principal.</td>
+            </tr>
+            <tr>
+              <td><code>MANDATE_DECLINE</code></td>
+              <td><strong>OFFER_DISCOUNT</strong></td>
+              <td>Recurring autopay mandate expired. Friction to re-authenticate is high; small concession incentivizes immediate manual settlement.</td>
+            </tr>
+            <tr>
+              <td><code>EXPIRED_CARD</code></td>
+              <td><strong>SEND_LINK</strong></td>
+              <td>Card expired. Customer requires update-card portal + alternate UPI link.</td>
+            </tr>
+            <tr>
+              <td><code>DISPUTED_AMOUNT</code></td>
+              <td><strong>FLAG_DISPUTE</strong></td>
+              <td>Billing / GST discrepancy. Automated recovery is paused immediately to prevent customer alienation.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ── 7. Concession Ladder & Anti-Gaming ────────────────────────────── -->
+    <section id="concession-calculator">
+      <h2>7. Concession Ladder & Anti-Gaming Calculator</h2>
+      <p>
+        Discounts in RecoveryAI are never hardcoded static numbers. Instead, they are dynamically computed as fractions of the merchant’s configured cap (<code>default_discount_cap</code>) and penalized based on customer abuse history (<code>consecutive_discount_months</code>):
+      </p>
+
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Customer History</th>
+              <th>Cap Multiplier</th>
+              <th>Max Accessible Tier</th>
+              <th>Example (10% Merchant Cap)</th>
+              <th>Example (20% Merchant Cap)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>0 Consecutive Months</strong> (Clean)</td>
+              <td><code>1.00 (100%)</code></td>
+              <td><strong>Tier 3 (Floor)</strong></td>
+              <td>T1: 5.0% | T2: 8.0% | T3: 10.0%</td>
+              <td>T1: 10.0% | T2: 16.0% | T3: 20.0%</td>
+            </tr>
+            <tr>
+              <td><strong>1 Consecutive Month</strong> (Repeat)</td>
+              <td><code>0.80 (80%)</code></td>
+              <td><strong>Tier 2 (Max)</strong> — Tier 3 BLOCKED</td>
+              <td>T1: 5.0% | T2: 8.0% | <span style="color:red;">T3: BLOCKED</span></td>
+              <td>T1: 10.0% | T2: 16.0% | <span style="color:red;">T3: BLOCKED</span></td>
+            </tr>
+            <tr>
+              <td><strong>2 Consecutive Months</strong> (Chronic)</td>
+              <td><code>0.50 (50%)</code></td>
+              <td><strong>Tier 1 (Max)</strong> — T2 & T3 BLOCKED</td>
+              <td>T1: 5.0% | <span style="color:red;">T2: BLOCKED</span> | <span style="color:red;">T3: BLOCKED</span></td>
+              <td>T1: 10.0% | <span style="color:red;">T2: BLOCKED</span> | <span style="color:red;">T3: BLOCKED</span></td>
+            </tr>
+            <tr>
+              <td><strong>3+ Consecutive Months</strong> (Excessive)</td>
+              <td><code>0.00 (0%)</code></td>
+              <td><strong>Tier 0 (None)</strong> — All Tiers BLOCKED</td>
+              <td><span style="color:red;">ALL DISCOUNTS BLOCKED (0%)</span></td>
+              <td><span style="color:red;">ALL DISCOUNTS BLOCKED (0%)</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Interactive Calculator Sandbox -->
+      <div class="calculator-widget">
+        <div class="card-title">Interactive Concession Calculator Sandbox</div>
+        <p style="font-size: 12px; margin-bottom: 14px;">Simulate how the Python <code>DiscountCalculator</code> computes concessions and anti-gaming penalties in real time:</p>
+        
+        <div class="calc-row">
+          <div class="calc-field">
+            <label>Invoice Amount (₹ INR)</label>
+            <input type="number" id="calc-amount" value="45000" oninput="runCalculator()">
+          </div>
+          <div class="calc-field">
+            <label>Merchant Discount Cap</label>
+            <select id="calc-cap" onchange="runCalculator()">
+              <option value="0.10" selected>10% Maximum Cap (Default)</option>
+              <option value="0.15">15% Maximum Cap</option>
+              <option value="0.20">20% Maximum Cap</option>
+              <option value="0.05">5% Strict Cap</option>
+            </select>
+          </div>
+          <div class="calc-field">
+            <label>Consecutive Discount Months</label>
+            <select id="calc-months" onchange="runCalculator()">
+              <option value="0" selected>0 Months (Clean History)</option>
+              <option value="1">1 Month (Repeat Discounter)</option>
+              <option value="2">2 Months (Chronic Exploiter)</option>
+              <option value="3">3+ Months (Excessive Exploiter - 0% Cap)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="calc-output" id="calc-results">
+          <!-- Populated by JavaScript -->
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 8. Customer Historical Signals ───────────────────────────────── -->
+    <section id="customer-history">
+      <h2>8. Customer Historical Signals</h2>
+      <p>
+        Every customer record in the <code>customers</code> table maintains vital financial telemetry used by the engine to balance customer retention against margin preservation:
+      </p>
+      <div class="card-grid">
+        <div class="card">
+          <div class="card-title">Customer Lifetime Value (<code>ltv_inr</code>)</div>
+          <p class="card-meta">Type: NUMERIC(12, 2)</p>
+          <p>Total historical revenue collected from this debtor. High LTV accounts (e.g. Ananya Iyer, ₹2,10,000) are routed directly to dedicated senior officers when disputed rather than facing automated pressure.</p>
+        </div>
+        <div class="card">
+          <div class="card-title">Consecutive Discount Months (<code>consecutive_discount_months</code>)</div>
+          <p class="card-meta">Type: INTEGER (Default 0)</p>
+          <p>The primary anti-gaming counter. Increments whenever a debtor resolves an invoice via a concession tier. Automatically penalizes effective discount caps on subsequent invoices.</p>
+        </div>
+        <div class="card">
+          <div class="card-title">Primary Contact Telemetry (<code>phone</code>, <code>email</code>)</div>
+          <p class="card-meta">Type: VARCHAR(20), VARCHAR(255)</p>
+          <p>Normalized Indian mobile format (<code>+9198XXXXXXXX</code>) used for automated WhatsApp dunning dispatches, SMS payment link generation, and Sarvam outbound voice dialing.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 9. Merchant Policy Configuration ─────────────────────────────── -->
+    <section id="merchant-policy">
+      <h2>9. Merchant Policy Configuration</h2>
+      <p>
+        Merchants retain sovereign control over recovery boundaries via the <code>merchants</code> table:
+      </p>
+      <ul style="margin-left: 20px; color: var(--text-muted); margin-bottom: 14px;">
+        <li style="margin-bottom: 6px;"><code>default_discount_cap</code> (NUMERIC 5,4): Defines the ceiling ratio of revenue the merchant is willing to sacrifice to resolve delinquent invoices (e.g. <code>0.1000 = 10%</code>).</li>
+        <li style="margin-bottom: 6px;"><strong>Cascade Isolation:</strong> All invoices and customers belong to a foreign-key-backed <code>merchant_id</code>. Overrides or policy changes apply strictly to the merchant's portfolio without data contamination across tenants.</li>
+      </ul>
+    </section>
+
+    <!-- ── 10. Finite State Machine (FSM) ───────────────────────────────── -->
+    <section id="state-machine">
+      <h2>10. Deterministic Finite State Machine (FSM)</h2>
+      <p>
+        The recovery lifecycle is governed by a formal, deterministic state machine implemented in <code>app.engine.state_machine.StateMachine</code>. Past events are strictly immutable; every state transition appends a new row to <code>recovery_events</code>.
+      </p>
+
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>State</th>
+              <th>Category</th>
+              <th>Operational Meaning</th>
+              <th>Allowed Next States</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>TRIGGERED</code></td>
+              <td>Active</td>
+              <td>Payment failure ingested; initial 10m countdown active before reminder.</td>
+              <td><code>REMINDER_SENT</code>, <code>PTP_ACTIVE</code>, <code>TIER_1_DISCOUNT</code>, <code>LINK_SENT</code>, <code>ESCALATED_HUMAN</code></td>
+            </tr>
+            <tr>
+              <td><code>DIAGNOSED</code></td>
+              <td>Legacy/Audit</td>
+              <td>Diagnosis logged inside the unified reminder dispatch step.</td>
+              <td><code>REMINDER_SENT</code>, <code>LINK_SENT</code>, <code>TIER_1_DISCOUNT</code>, <code>PTP_ACTIVE</code></td>
+            </tr>
+            <tr>
+              <td><code>REMINDER_SENT</code></td>
+              <td>Active</td>
+              <td>WhatsApp/SMS reminder dispatched; 10m countdown active before voice call queueing.</td>
+              <td><code>PTP_ACTIVE</code>, <code>LINK_SENT</code>, <code>TIER_1_DISCOUNT</code>, <code>ESCALATED_HUMAN</code>, <code>RESOLVED</code></td>
+            </tr>
+            <tr>
+              <td><code>LINK_SENT</code></td>
+              <td>Active</td>
+              <td>Alternate UPI/Card payment link dispatched with 1-hour settlement window.</td>
+              <td><code>RESOLVED</code>, <code>TIER_1_DISCOUNT</code>, <code>PTP_ACTIVE</code>, <code>ESCALATED_HUMAN</code></td>
+            </tr>
+            <tr>
+              <td><code>PTP_ACTIVE</code></td>
+              <td>Active (Paused)</td>
+              <td>Debtor committed to pay by a specific date (≤ 3 days). Outreach paused until deadline.</td>
+              <td><code>RESOLVED</code>, <code>LINK_SENT</code>, <code>TIER_1_DISCOUNT</code>, <code>ESCALATED_HUMAN</code></td>
+            </tr>
+            <tr>
+              <td><code>TIER_1_DISCOUNT</code></td>
+              <td>Concession</td>
+              <td>50% of merchant cap offered (e.g. 5% waiver). Awaiting settlement.</td>
+              <td><code>RESOLVED</code>, <code>TIER_2_DISCOUNT</code>, <code>PTP_ACTIVE</code>, <code>ESCALATED_HUMAN</code></td>
+            </tr>
+            <tr>
+              <td><code>TIER_2_DISCOUNT</code></td>
+              <td>Concession</td>
+              <td>80% of merchant cap offered (e.g. 8% waiver). Awaiting settlement.</td>
+              <td><code>RESOLVED</code>, <code>TIER_3_FLOOR</code>, <code>PTP_ACTIVE</code>, <code>ESCALATED_HUMAN</code></td>
+            </tr>
+            <tr>
+              <td><code>TIER_3_FLOOR</code></td>
+              <td>Concession</td>
+              <td>100% of merchant cap offered (e.g. 10% maximum waiver). Final automated offer.</td>
+              <td><code>RESOLVED</code>, <code>ESCALATED_HUMAN</code>, <code>PTP_ACTIVE</code></td>
+            </tr>
+            <tr>
+              <td><code>RESOLVED</code></td>
+              <td>Terminal</td>
+              <td>Payment fully collected and reconciled. Workflow complete.</td>
+              <td><em>None (Terminal)</em></td>
+            </tr>
+            <tr>
+              <td><code>FROZEN_DISPUTE</code></td>
+              <td>Terminal</td>
+              <td>Debtor flagged billing error. Outreach permanently paused for human audit.</td>
+              <td><em>None (Terminal)</em></td>
+            </tr>
+            <tr>
+              <td><code>ESCALATED_HUMAN</code></td>
+              <td>Terminal</td>
+              <td>Debtor refused all options or policy limit reached. Assigned to human officer.</td>
+              <td><em>None (Terminal)</em></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      
+      <div class="callout info">
+        <div class="callout-title">Global Escape Hatches</div>
+        Any active state can transition globally to <code>FROZEN_DISPUTE</code> (if customer signals a billing dispute) or <code>RESOLVED</code> (if an external payment webhook arrives).
+      </div>
+    </section>
+
+    <!-- ── 11. Autonomous Scheduler ────────────────────────────────────── -->
+    <section id="autonomous-scheduler">
+      <h2>11. Autonomous Scheduler & Background Workers</h2>
+      <p>
+        Autonomy in RecoveryAI is driven by <code>app.scheduler.run_scheduler()</code>, an asynchronous background task registered within FastAPI's lifespan lifecycle in <code>main.py</code>:
+      </p>
+      
+      <pre><code># Background Worker Loop in app/scheduler.py
+POLL_INTERVAL_SECONDS = 20
+
+async def run_scheduler() -> None:
+    logger.info("🤖 RecoveryAI autonomous scheduler started (poll=20s)")
+    while True:
+        await asyncio.sleep(POLL_INTERVAL_SECONDS)
+        try:
+            result = await process_expired_deadlines()
+            if result["fired"] or result["calls_queued"]:
+                logger.info("⚙️ Scheduler cycle: %s", result)
+        except Exception as e:
+            logger.error("Scheduler cycle error: %s", e)</code><span class="code-badge">Python / FastAPI</span></pre>
+
+      <p>
+        The scheduler queries the database for all unpaid invoices where <code>next_action_due_at &lt;= now()</code> and <code>call_pending == false</code>:
+      </p>
+      <ul style="margin-left: 20px; color: var(--text-muted); margin-bottom: 14px;">
+        <li style="margin-bottom: 6px;"><strong>TRIGGERED:</strong> Automatically generates personalized dunning copy via Gemini, transitions the invoice to <code>REMINDER_SENT</code>, and sets a 10-minute timer for voice call eligibility.</li>
+        <li style="margin-bottom: 6px;"><strong>REMINDER_SENT / LINK_SENT:</strong> When the 10-minute reminder window expires without payment, the scheduler sets <code>call_pending = true</code> and clears the timer, signaling the frontend to enqueue a voice call.</li>
+        <li style="margin-bottom: 6px;"><strong>PTP_ACTIVE:</strong> If the debtor breaches their promise-to-pay deadline, the scheduler directly queues an outbound voice call to re-negotiate or escalate.</li>
+        <li style="margin-bottom: 6px;"><strong>TIER_3_FLOOR:</strong> If the final floor discount window expires without payment, the scheduler transitions the invoice to <code>ESCALATED_HUMAN</code>.</li>
+      </ul>
+    </section>
+
+    <!-- ── 12. Real-Time Countdown Engine ──────────────────────────────── -->
+    <section id="real-time-countdowns">
+      <h2>12. Real-Time Countdown Engine (Server Truth vs UI Display)</h2>
+      <p>
+        A frequent architectural pitfall in web applications is storing countdown timers in React component state, which resets whenever a user refreshes their browser.
+      </p>
+      <p>
+        RecoveryAI strictly separates <strong>Server Truth</strong> from <strong>UI Display</strong>:
+      </p>
+      <div class="card-grid">
+        <div class="card">
+          <div class="card-title">1. Server Truth (PostgreSQL)</div>
+          <p class="card-meta"><code>invoices.next_action_due_at</code></p>
+          <p>Stored as an exact UTC timestamp (<code>TIMESTAMPTZ</code>). Remains completely invariant regardless of browser refreshes, tab closures, or network reconnects.</p>
+        </div>
+        <div class="card">
+          <div class="card-title">2. UI Display (React <code>page.tsx</code>)</div>
+          <p class="card-meta"><code>formatRemainingTime(target, now)</code></p>
+          <p>A client-side <code>setInterval</code> ticks every 1 second, calculating <code>targetDate.getTime() - now.getTime()</code>. When the countdown reaches <code>00:00</code>, the UI triggers background sync.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 13. Fast-Forward Engine ──────────────────────────────────────── -->
+    <section id="fast-forward-engine">
+      <h2>13. Fast-Forward & Simulation Subsystem</h2>
+      <p>
+        To allow operators and demonstration viewers to test multi-day recovery lifecycles in seconds without waiting 10 minutes or 3 days, RecoveryAI provides the <code>/api/simulation/fast-forward</code> and <code>/api/invoices/{id}/skip-wait</code> endpoints.
+      </p>
+      <div class="callout success">
+        <div class="callout-title">Architectural Integrity of Fast Forward</div>
+        Fast Forward does NOT bypass the state machine or force arbitrary states. Instead, it mathematically winds back stored deadlines in PostgreSQL (e.g. <code>next_action_due_at = now - 1s</code>) and passes execution through the exact same authoritative <code>process_expired_deadlines()</code> scheduler logic.
+      </div>
+    </section>
+
+    <!-- ── 14. Call Queue Subsystem ────────────────────────────────────── -->
+    <section id="call-queue-subsystem">
+      <h2>14. Call Queue Subsystem</h2>
+      <p>
+        When an invoice reaches an actionable calling state, it enters the global calling queue:
+      </p>
+      <ul style="margin-left: 20px; color: var(--text-muted); margin-bottom: 14px;">
+        <li style="margin-bottom: 6px;"><strong>Eligibility:</strong> An invoice is call-eligible if <code>call_pending == true</code> or if an operator triggers <em>Skip Wait</em> / <em>Simulate Breach</em>.</li>
+        <li style="margin-bottom: 6px;"><strong>Single-Focus Drawer:</strong> The frontend <code>CallQueueDrawer</code> manages active calls sequentially. Only one call modal can be active at a time to prevent audio playback overlap.</li>
+        <li style="margin-bottom: 6px;"><strong>Acknowledgment:</strong> Upon call completion or auto-close, the frontend calls <code>POST /api/invoices/{id}/acknowledge-call</code> to reset <code>call_pending = false</code> in PostgreSQL.</li>
+      </ul>
+    </section>
+
+    <!-- ── 15. Multilingual Voice Agent ────────────────────────────────── -->
+    <section id="voice-pipeline">
+      <h2>15. Multilingual Voice Agent (Hinglish / Indian English)</h2>
+      <p>
+        RecoveryAI integrates a low-latency voice negotiation pipeline using Sarvam AI v3 and Google Gemini 3.6 Flash:
+      </p>
+
+      <div class="pipeline-diagram">
+        <div class="flow-step">
+          <div class="flow-num">1</div>
+          <div class="flow-body">
+            <div class="flow-title">Opening Greeting Synthesis (Sarvam bulbul-v3)</div>
+            <div class="flow-desc">Synthesizes personalized greeting in natural Hindi/English (e.g. <em>"Namaste Priya ji! Main DemoMerchant se bol raha hoon..."</em>) using the <code>shubh</code> speaker profile.</div>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-num">2</div>
+          <div class="flow-body">
+            <div class="flow-title">Audio Streaming & Debtor Speech Capture</div>
+            <div class="flow-desc">Debtor records speech via browser Web MediaRecorder API (audio/webm) or selects quick test prompts.</div>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-num">3</div>
+          <div class="flow-body">
+            <div class="flow-title">Speech-to-Text Transcription (Sarvam saaras-v3)</div>
+            <div class="flow-desc">Transcribes mixed Hindi/Hinglish audio to text with high acoustic accuracy for Indian accents.</div>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-num">4</div>
+          <div class="flow-body">
+            <div class="flow-title">Intent Extraction & FSM Transition (Gemini 3.6 Flash)</div>
+            <div class="flow-desc">Extracts structured intent, calculates concessions via <code>DiscountCalculator</code>, executes FSM state transitions, and generates conversational replies.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 16. Gemini LLM Service ──────────────────────────────────────── -->
+    <section id="gemini-llm-service">
+      <h2>16. Gemini AI Service & Async Thread Offloading</h2>
+      <p>
+        Implemented in <code>app.engine.gemini_service</code>. Utilizes Google GenAI 1.x / GenerativeModel with <code>gemini-3.6-flash</code>:
+      </p>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Method</th>
+              <th>Task</th>
+              <th>Timeout & Thread Offloading</th>
+              <th>Fallback Behavior</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>parse_debtor_message()</code></td>
+              <td>Extracts intent (PTP, dispute, refusal, concession request) & ISO timestamps.</td>
+              <td>Non-blocking <code>asyncio.to_thread</code> with <strong>1.8s timeout cap</strong>.</td>
+              <td>Regex date parser + keyword dictionary fallback in &lt; 1ms.</td>
+            </tr>
+            <tr>
+              <td><code>generate_dunning_copy()</code></td>
+              <td>Generates empathetic SMS/WhatsApp dunning copy in Indian English.</td>
+              <td>Non-blocking <code>asyncio.to_thread</code> with <strong>1.8s timeout cap</strong>.</td>
+              <td>Pre-compiled deterministic dunning templates.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ── 17. Sarvam Speech Service ────────────────────────────────────── -->
+    <section id="sarvam-speech-service">
+      <h2>17. Sarvam AI Speech Integration & Audio Caching</h2>
+      <p>
+        Implemented in <code>app.engine.sarvam_service</code>. Provides speech capabilities:
+      </p>
+      <ul style="margin-left: 20px; color: var(--text-muted); margin-bottom: 14px;">
+        <li style="margin-bottom: 6px;"><strong>Speech-to-Text:</strong> <code>saaras:v3</code> model via <code>https://api.sarvam.ai/speech-to-text</code> with strict 2.5s network timeout.</li>
+        <li style="margin-bottom: 6px;"><strong>Text-to-Speech:</strong> <code>bulbul:v3</code> model with <code>speaker="shubh"</code> and <code>target_language_code="hi-IN"</code>.</li>
+        <li style="margin-bottom: 6px;"><strong>In-Memory SHA-256 Audio Cache:</strong> Common greetings and concession statements are cached in <code>_TTS_AUDIO_CACHE</code>, serving repeated speech requests in <strong>0.15ms</strong>.</li>
+      </ul>
+    </section>
+
+    <!-- ── 18-21. Execution Traces ──────────────────────────────────────── -->
+    <section id="scenario-clean-full-price">
+      <h2>18. Trace A: Clean Full-Price Payment (Aarav Sharma)</h2>
+      <div class="card">
+        <div class="card-title">Scenario Context: Technical Gateway Timeout</div>
+        <p class="card-meta">Aarav Sharma | ₹18,500 | Clean History (0 discount mo) | LTV ₹1,50,000</p>
+        <p>1. Ingestion: Payment fails due to <code>GATEWAY_TIMEOUT</code>. Case enters <code>TRIGGERED</code>.</p>
+        <p>2. Diagnosis: Engine classifies failure as technical. Zero discounts recommended.</p>
+        <p>3. WhatsApp Dispatch: Autonomous reminder dispatched with direct UPI link. State becomes <code>REMINDER_SENT</code>.</p>
+        <p>4. Resolution: Debtor pays full ₹18,500. State transitions to <code>RESOLVED</code> with 0% discount granted.</p>
+        <p>5. Financial Impact: ₹18,500 gross recovered, ₹1,850 margin preserved.</p>
+      </div>
+    </section>
+
+    <section id="scenario-discount-ladder">
+      <h2>19. Trace B: Concession Negotiation Ladder (Priya Verma)</h2>
+      <div class="card">
+        <div class="card-title">Scenario Context: Liquidity Crunch & Discount Escalation</div>
+        <p class="card-meta">Priya Verma | ₹45,000 | 1 Mo Discount History | 10% Merchant Cap</p>
+        <p>1. Ingestion: UPI Autopay bounced due to <code>INSUFFICIENT_FUNDS</code>.</p>
+        <p>2. Policy Calculation: 1 month discount history triggers 80% penalty cap (8.00% max ceiling). Tier 3 (10%) is <strong>BLOCKED</strong>.</p>
+        <p>3. Voice Call Turn 1: Debtor declines full payment. Agent offers <strong>Tier 1 (5% waiver = ₹42,750 net)</strong>. State: <code>TIER_1_DISCOUNT</code>.</p>
+        <p>4. Voice Call Turn 2: Debtor still hesitant. Agent climbs to <strong>Tier 2 (8% waiver = ₹41,400 net)</strong>. State: <code>TIER_2_DISCOUNT</code>.</p>
+        <p>5. Settlement: Debtor accepts. Link dispatched. Payment confirmed → <code>RESOLVED</code>.</p>
+      </div>
+    </section>
+
+    <section id="scenario-ptp-commitment">
+      <h2>20. Trace C: Promise-to-Pay Commitment (Vikram Malhotra)</h2>
+      <div class="card">
+        <div class="card-title">Scenario Context: 3-Day Promise-to-Pay</div>
+        <p class="card-meta">Vikram Malhotra | ₹12,000 | NACH Mandate Decline</p>
+        <p>1. Debtor states during call: <em>"Main 3 din mein payment kar dunga."</em></p>
+        <p>2. Gemini extracts <code>PROMISE_TO_PAY</code> with ISO deadline <code>now + 3 days</code>.</p>
+        <p>3. State transitions to <code>PTP_ACTIVE</code>. Automated dunning outreach is placed on hold.</p>
+        <p>4. If debtor pays before deadline: transitions to <code>RESOLVED</code>.</p>
+        <p>5. If deadline breached: scheduler directly triggers outbound follow-up call to re-negotiate.</p>
+      </div>
+    </section>
+
+    <section id="scenario-billing-dispute">
+      <h2>21. Trace D: Billing Dispute Freezing (Ananya Iyer)</h2>
+      <div class="card">
+        <div class="card-title">Scenario Context: TDS/GST Billing Dispute</div>
+        <p class="card-meta">Ananya Iyer | ₹95,000 | High LTV Account (₹2,10,000)</p>
+        <p>1. Customer states: <em>"GST calculation wrong hai, invoice amount incorrect hai."</em></p>
+        <p>2. Gemini detects <code>DISPUTE</code> with reason <em>"GST calculation error"</em>.</p>
+        <p>3. State transitions immediately to <code>FROZEN_DISPUTE</code>.</p>
+        <p>4. Safety Guardrail: All automated contact, discounts, and dunning outreach are permanently locked. Dossier is routed to senior human finance.</p>
+      </div>
+    </section>
+
+    <!-- ── 22. Database Schema & Tables ────────────────────────────────── -->
+    <section id="database-schema">
+      <h2>22. Database Schema & Models</h2>
+      <p>
+        RecoveryAI uses a normalized PostgreSQL relational schema mapped via SQLAlchemy ORM in <code>app.models</code>:
+      </p>
+
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Table Name</th>
+              <th>Primary Key</th>
+              <th>Foreign Keys & Relations</th>
+              <th>Key Columns & Types</th>
+              <th>Operational Purpose</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>merchants</code></td>
+              <td><code>id</code> (UUID)</td>
+              <td>1-to-Many with <code>customers</code>, <code>invoices</code></td>
+              <td><code>name</code> (VARCHAR), <code>default_discount_cap</code> (NUMERIC 5,4)</td>
+              <td>Tenant configuration & maximum concession ceiling.</td>
+            </tr>
+            <tr>
+              <td><code>customers</code></td>
+              <td><code>id</code> (UUID)</td>
+              <td><code>merchant_id</code> → <code>merchants.id</code></td>
+              <td><code>name</code>, <code>phone</code>, <code>ltv_inr</code> (NUMERIC 12,2), <code>consecutive_discount_months</code> (INT)</td>
+              <td>Customer risk profile and historical discount telemetry.</td>
+            </tr>
+            <tr>
+              <td><code>invoices</code></td>
+              <td><code>id</code> (UUID)</td>
+              <td><code>customer_id</code>, <code>merchant_id</code></td>
+              <td><code>amount_inr</code>, <code>status</code>, <code>failure_reason</code>, <code>next_action_due_at</code>, <code>call_pending</code></td>
+              <td>Active payment failure records & autonomous scheduling state.</td>
+            </tr>
+            <tr>
+              <td><code>recovery_events</code></td>
+              <td><code>id</code> (UUID)</td>
+              <td><code>invoice_id</code> → <code>invoices.id</code></td>
+              <td><code>current_state</code>, <code>discount_offered</code>, <code>ptp_deadline</code>, <code>log_message</code>, <code>timestamp</code></td>
+              <td>Immutable audit log of all FSM transitions and interactions.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ── 23. Database Lifecycle & Migrations ──────────────────────────── -->
+    <section id="database-lifecycle">
+      <h2>23. Database Lifecycle & Supabase PostgreSQL Migrations</h2>
+      <p>
+        Database schema synchronization is managed programmatically in <code>app.migrations.run_migrations()</code>:
+      </p>
+      <pre><code>-- Executed automatically on startup and /api/seed
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+-- Idempotent column additions for live Supabase PostgreSQL instances
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS next_action_due_at TIMESTAMPTZ;
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS call_pending BOOLEAN NOT NULL DEFAULT FALSE;</code><span class="code-badge">SQL / DDL</span></pre>
+      <p>
+        <strong>Zero Data Loss:</strong> The migration runner uses <code>CREATE TABLE IF NOT EXISTS</code> and <code>ALTER TABLE ADD COLUMN IF NOT EXISTS</code> semantics, guaranteeing existing production records and historical audit entries are never destroyed during updates.
+      </p>
+    </section>
+
+    <!-- ── 24. API Reference ────────────────────────────────────────────── -->
+    <section id="api-reference">
+      <h2>24. API Reference & Endpoint Matrix</h2>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Method</th>
+              <th>Endpoint</th>
+              <th>Purpose</th>
+              <th>Input Payload</th>
+              <th>Output Response</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>GET</code></td>
+              <td><code>/health</code></td>
+              <td>Liveness probe</td>
+              <td><em>None</em></td>
+              <td><code>{"status": "healthy", "service": "RecoveryAI"}</code></td>
+            </tr>
+            <tr>
+              <td><code>GET</code></td>
+              <td><code>/api/invoices</code></td>
+              <td>List all invoices with relations</td>
+              <td><em>None</em></td>
+              <td><code>list[InvoiceOut]</code></td>
+            </tr>
+            <tr>
+              <td><code>POST</code></td>
+              <td><code>/api/seed</code></td>
+              <td>Idempotently seed 6 core Indian test scenarios</td>
+              <td><em>None</em></td>
+              <td><code>SeedResponse</code> (6 scenarios)</td>
+            </tr>
+            <tr>
+              <td><code>POST</code></td>
+              <td><code>/api/invoices/{id}/skip-wait</code></td>
+              <td>Advance single invoice by 1 autonomous step</td>
+              <td><em>None</em></td>
+              <td><code>SkipWaitResponse</code></td>
+            </tr>
+            <tr>
+              <td><code>POST</code></td>
+              <td><code>/api/invoices/{id}/voice/greeting</code></td>
+              <td>Synthesize outbound voice greeting via Sarvam TTS</td>
+              <td><em>None</em></td>
+              <td><code>VoiceGreetingResponse</code> (Base64 audio)</td>
+            </tr>
+            <tr>
+              <td><code>POST</code></td>
+              <td><code>/api/invoices/{id}/voice/transcribe-and-reply</code></td>
+              <td>Process debtor voice/text turn & step FSM</td>
+              <td><code>audio_file</code> (FormData) or <code>text_fallback</code></td>
+              <td><code>VoiceCallResponse</code></td>
+            </tr>
+            <tr>
+              <td><code>POST</code></td>
+              <td><code>/api/invoices/{id}/override</code></td>
+              <td>Manual operator override with rationale</td>
+              <td><code>OperatorOverrideRequest</code></td>
+              <td><code>InvoiceOut</code></td>
+            </tr>
+            <tr>
+              <td><code>POST</code></td>
+              <td><code>/api/simulation/fast-forward</code></td>
+              <td>Advance simulation deadlines across portfolio</td>
+              <td><code>FastForwardRequest</code></td>
+              <td><code>FastForwardResponse</code></td>
+            </tr>
+            <tr>
+              <td><code>GET</code></td>
+              <td><code>/api/analytics/overview</code></td>
+              <td>Hybrid Portfolio Analytics (Baseline + Live DB)</td>
+              <td><em>None</em></td>
+              <td><code>AnalyticsOverviewResponse</code></td>
+            </tr>
+            <tr>
+              <td><code>GET</code></td>
+              <td><code>/api/invoices/{id}/audit-export</code></td>
+              <td>Export full court-ready compliance dossier</td>
+              <td><em>None</em></td>
+              <td><code>AuditExportResponse</code></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ── 25. Next.js Frontend Architecture ────────────────────────────── -->
+    <section id="frontend-architecture">
+      <h2>25. Next.js Frontend Architecture</h2>
+      <p>
+        The frontend is built with Next.js 16 (App Router), React 19, TypeScript, and TailwindCSS.
+      </p>
+      <div class="card-grid">
+        <div class="card">
+          <div class="card-title">Operations Console (<code>page.tsx</code>)</div>
+          <p>Main dashboard managing active invoice rows, live countdown timers, batch simulation bars, and fast-forward controls.</p>
+        </div>
+        <div class="card">
+          <div class="card-title">Voice Call Modal (<code>VoiceCallModal.tsx</code>)</div>
+          <p>Interactive outbound voice interface with Sarvam audio replay, browser audio recorder, multi-turn history, and quick chips.</p>
+        </div>
+        <div class="card">
+          <div class="card-title">Call Queue Drawer (<code>CallQueueDrawer.tsx</code>)</div>
+          <p>Slide-over drawer managing queued debtor voice calls sequentially.</p>
+        </div>
+        <div class="card">
+          <div class="card-title">Recovery Analytics (<code>AnalyticsTab.tsx</code>)</div>
+          <p>Real-time analytics aggregating volume at risk, gross recovered, margin preserved, recovery funnels, and concession breakdowns.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 26. Codebase File Structure ──────────────────────────────────── -->
+    <section id="project-tree">
+      <h2>26. Codebase File Structure</h2>
+      <pre><code>RecoveryAI/
+├── backend/
+│   ├── app/
+│   │   ├── engine/
+│   │   │   ├── calculator.py       # Concession ladder & anti-gaming math
+│   │   │   ├── gemini_service.py   # Gemini 3.6 Flash LLM intent & dunning copy
+│   │   │   ├── sarvam_service.py   # Sarvam AI saaras-v3 STT & bulbul-v3 TTS + audio cache
+│   │   │   └── state_machine.py    # Deterministic FSM transition graph
+│   │   ├── config.py               # Pydantic Settings & environment loader
+│   │   ├── database.py             # SQLAlchemy AsyncEngine & SessionLocal
+│   │   ├── migrations.py           # DDL schema migrator for Supabase PostgreSQL
+│   │   ├── models.py               # SQLAlchemy ORM models (Merchant, Customer, Invoice, RecoveryEvent)
+│   │   ├── routes.py               # FastAPI REST router handlers
+│   │   ├── schemas.py              # Pydantic request & response models
+│   │   └── scheduler.py            # Autonomous 20s background polling loop
+│   ├── main.py                     # FastAPI entry point with CORS & X-Process-Time profiling
+│   ├── seed.py                     # 6 core Indian payment-failure test scenarios
+│   └── test_perf_audit.py          # End-to-end performance & latency audit verification
+├── frontend/
+│   ├── src/
+│   │   ├── app/
+│   │   │   ├── layout.tsx          # Root HTML layout & font loader
+│   │   │   └── page.tsx            # Operations Console & main dashboard
+│   │   ├── components/
+│   │   │   ├── AnalyticsTab.tsx    # Portfolio Recovery Intelligence tab
+│   │   │   ├── CallQueueDrawer.tsx # Slide-over queue manager for voice calls
+│   │   │   ├── ManualEntryModal.tsx# Manual invoice ingestion dialog
+│   │   │   └── VoiceCallModal.tsx  # Outbound voice negotiation modal
+│   │   └── lib/
+│   │       └── api.ts              # Type-safe API client wrapper
+├── .gitignore                      # Protected secrets, virtualenv, and build artifacts
+└── guide.html                      # System Architecture & Operations Reference Guide</code><span class="code-badge">Project Tree</span></pre>
+    </section>
+
+    <!-- ── 27. Manual Operator Overrides ────────────────────────────────── -->
+    <section id="operator-overrides">
+      <h2>27. Manual Operator Overrides</h2>
+      <p>
+        Human operators can intervene at any point via the <strong>Override</strong> menu in the dashboard. Available actions:
+      </p>
+      <ul style="margin-left: 20px; color: var(--text-muted); margin-bottom: 14px;">
+        <li style="margin-bottom: 6px;"><code>MANUAL_LINK</code>: Dispatches an immediate payment link (transitions to <code>LINK_SENT</code>).</li>
+        <li style="margin-bottom: 6px;"><code>SIMULATE_PTP</code>: Manually records a 3-day promise-to-pay commitment (<code>PTP_ACTIVE</code>).</li>
+        <li style="margin-bottom: 6px;"><code>FORCE_DISCOUNT</code>: Overrides policy to offer Tier 1 discount immediately (<code>TIER_1_DISCOUNT</code>).</li>
+        <li style="margin-bottom: 6px;"><code>FLAG_DISPUTE</code>: Freezes case for billing audit (<code>FROZEN_DISPUTE</code>).</li>
+        <li style="margin-bottom: 6px;"><code>MARK_SETTLED</code>: Confirms off-platform bank transfer/cash payment (<code>RESOLVED</code>).</li>
+        <li style="margin-bottom: 6px;"><code>ESCALATE_HUMAN</code>: Routes dossier to senior credit officer (<code>ESCALATED_HUMAN</code>).</li>
+      </ul>
+    </section>
+
+    <!-- ── 28. Immutable Audit Trail ────────────────────────────────────── -->
+    <section id="audit-logging">
+      <h2>28. Immutable Audit Trail</h2>
+      <p>
+        Every single interaction, state change, and operator override generates a permanent row in <code>recovery_events</code>:
+      </p>
+      <pre><code>{
+  "id": "c89f2a1b-4d3e-4f5a-8b9c-0d1e2f3a4b5c",
+  "invoice_id": "bbbb2222-bbbb-2222-bbbb-222222222222",
+  "current_state": "TIER_1_DISCOUNT",
+  "discount_offered": 0.0500,
+  "ptp_deadline": null,
+  "log_message": "[VOICE CALL] Debtor Transcript: \"Nahi main full payment nahi kar sakta\"\nIntent: REQUEST_DISCOUNT (Confidence: 0.95)\nReasoning: Debtor signaled inability to pay full amount and requested concession.\nNote: Voice negotiation -> applied Tier 1 (5.00% waiver)",
+  "timestamp": "2026-08-31T10:45:00.000Z"
+}</code><span class="code-badge">JSON / RecoveryEvent</span></pre>
+    </section>
+
+    <!-- ── 29. Analytics & Observability ────────────────────────────────── -->
+    <section id="observability-analytics">
+      <h2>29. Analytics & Preserved Margin</h2>
+      <p>
+        The Analytics Engine calculates live portfolio health across 4 key metrics:
+      </p>
+      <div class="card-grid">
+        <div class="card">
+          <div class="card-title">Total Volume at Risk</div>
+          <p>Gross INR volume across all delinquent invoices ingested into the pipeline.</p>
+        </div>
+        <div class="card">
+          <div class="card-title">Gross Recovered</div>
+          <p>Total principal collected across resolved cases before concessions.</p>
+        </div>
+        <div class="card">
+          <div class="card-title">Anti-Gaming Margin Preserved</div>
+          <p>Calculated as <code>Gross Amount × (Merchant Cap − Discount Granted)</code>. Measures exact INR revenue saved by withholding excessive discounts.</p>
+        </div>
+        <div class="card">
+          <div class="card-title">Recovery Win Rate</div>
+          <p><code>(Gross Recovered / Total Volume at Risk) × 100</code>.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 30. Fault Tolerance & Fallbacks ──────────────────────────────── -->
+    <section id="failure-handling">
+      <h2>30. Fault Tolerance & Failure Handling</h2>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Failure Scenario</th>
+              <th>Impact</th>
+              <th>Engine Mitigation & Fallback Strategy</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Gemini API Quota (HTTP 429)</td>
+              <td>LLM unavailable</td>
+              <td>1.8s timeout triggers instant regex date parser & deterministic dunning templates. Zero app crashes.</td>
+            </tr>
+            <tr>
+              <td>Sarvam AI STT Offline</td>
+              <td>Audio unparsed</td>
+              <td>Falls back to fallback transcript mode + text fallback input field in voice modal.</td>
+            </tr>
+            <tr>
+              <td>Sarvam AI TTS Offline</td>
+              <td>Audio ungenerated</td>
+              <td>Voice modal displays full text speech bubble; debtor continues conversation seamlessly.</td>
+            </tr>
+            <tr>
+              <td>Database Disconnection</td>
+              <td>DB unreachable</td>
+              <td>Scheduler logs error, maintains process loop, and retries on next 20s cycle without crashing.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ── 31. Current vs Planned Matrix ────────────────────────────────── -->
+    <section id="implementation-matrix">
+      <h2>31. Current vs Planned Implementation Matrix</h2>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Feature Area</th>
+              <th>Status</th>
+              <th>Evidence & Implementation Details</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Deterministic FSM (9 States)</td>
+              <td><span class="status-badge badge-resolved">IMPLEMENTED</span></td>
+              <td><code>app/engine/state_machine.py</code> with <code>TRANSITION_MAP</code> and audit logger.</td>
+            </tr>
+            <tr>
+              <td>Anti-Gaming Concession Calculator</td>
+              <td><span class="status-badge badge-resolved">IMPLEMENTED</span></td>
+              <td><code>app/engine/calculator.py</code> with <code>CONSEC_CAP_MULTIPLIER</code>.</td>
+            </tr>
+            <tr>
+              <td>Autonomous 20s Scheduler</td>
+              <td><span class="status-badge badge-resolved">IMPLEMENTED</span></td>
+              <td><code>app/scheduler.py</code> with <code>next_action_due_at</code> deadline triggers.</td>
+            </tr>
+            <tr>
+              <td>Sarvam STT (saaras-v3) & TTS (bulbul-v3)</td>
+              <td><span class="status-badge badge-resolved">IMPLEMENTED</span></td>
+              <td><code>app/engine/sarvam_service.py</code> with <code>_TTS_AUDIO_CACHE</code>.</td>
+            </tr>
+            <tr>
+              <td>Gemini 3.6 Flash Intent Engine</td>
+              <td><span class="status-badge badge-resolved">IMPLEMENTED</span></td>
+              <td><code>app/engine/gemini_service.py</code> with 1.8s timeout and deterministic fallback.</td>
+            </tr>
+            <tr>
+              <td>Operations Console & Call Queue</td>
+              <td><span class="status-badge badge-resolved">IMPLEMENTED</span></td>
+              <td><code>frontend/src/app/page.tsx</code> & <code>VoiceCallModal.tsx</code>.</td>
+            </tr>
+            <tr>
+              <td>Hybrid Portfolio Analytics</td>
+              <td><span class="status-badge badge-resolved">IMPLEMENTED</span></td>
+              <td><code>/api/analytics/overview</code> blending 120 baseline + live DB records.</td>
+            </tr>
+            <tr>
+              <td>Supabase PostgreSQL Migrations</td>
+              <td><span class="status-badge badge-resolved">IMPLEMENTED</span></td>
+              <td><code>app/migrations.py</code> with idempotent <code>ALTER TABLE</code>.</td>
+            </tr>
+            <tr>
+              <td>Direct Razorpay Webhook Signing</td>
+              <td><span class="status-badge badge-active">SIMULATED / DEMO</span></td>
+              <td>Simulated via <code>MARK_SETTLED</code> and direct API override triggers.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ── 32. Starting From Zero ───────────────────────────────────────── -->
+    <section id="starting-from-zero">
+      <h2>32. Starting From Zero (Quick Setup Guide)</h2>
+      <p>Follow these exact steps to run RecoveryAI on a fresh development machine:</p>
+
+      <h4>1. Backend Setup</h4>
+      <pre><code># 1. Navigate to backend directory
+cd backend
+
+# 2. Create and activate Python virtual environment
+python -m venv ..\.venv
+..\.venv\Scripts\activate
+
+# 3. Install Python dependencies
+pip install -r requirements.txt
+
+# 4. Configure backend environment
+# Ensure backend/.env contains your SUPABASE_DATABASE_URL, GEMINI_API_KEY, and SARVAM_API_KEY
+
+# 5. Start FastAPI development server
+uvicorn main:app --reload --port 8000</code><span class="code-badge">Terminal (Backend)</span></pre>
+
+      <h4>2. Frontend Setup</h4>
+      <pre><code># 1. Open new terminal and navigate to frontend directory
+cd frontend
+
+# 2. Install Node dependencies
+npm install
+
+# 3. Start Next.js development server
+npm run dev</code><span class="code-badge">Terminal (Frontend)</span></pre>
+
+      <h4>3. Verify Installation</h4>
+      <p>Open <code>http://localhost:3000</code> in your browser. Click <strong>Seed Database</strong> to populate 6 initial payment recovery scenarios.</p>
+    </section>
+
+    <!-- ── 33. Environment Variables ────────────────────────────────────── -->
+    <section id="environment-variables">
+      <h2>33. Environment Variables Configuration</h2>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Variable Name</th>
+              <th>Required?</th>
+              <th>Location</th>
+              <th>Description & Format</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>DATABASE_URL</code></td>
+              <td>Required</td>
+              <td><code>backend/.env</code></td>
+              <td>PostgreSQL / Supabase connection string (e.g. <code>postgresql+asyncpg://user:pass@host:5432/db</code>).</td>
+            </tr>
+            <tr>
+              <td><code>GEMINI_API_KEY</code></td>
+              <td>Optional</td>
+              <td><code>backend/.env</code></td>
+              <td>Google AI Studio API key for <code>gemini-3.6-flash</code>. (Has fallback if missing).</td>
+            </tr>
+            <tr>
+              <td><code>SARVAM_API_KEY</code></td>
+              <td>Optional</td>
+              <td><code>backend/.env</code></td>
+              <td>Sarvam AI subscription key for STT & TTS. (Has fallback if missing).</td>
+            </tr>
+            <tr>
+              <td><code>NEXT_PUBLIC_API_BASE_URL</code></td>
+              <td>Optional</td>
+              <td><code>frontend/.env.local</code></td>
+              <td>FastAPI backend URL (Default: <code>http://localhost:8000</code>).</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ── 34. Practical Troubleshooting ────────────────────────────────── -->
+    <section id="troubleshooting">
+      <h2>34. Practical Troubleshooting</h2>
+      <div class="card-grid">
+        <div class="card">
+          <div class="card-title">Problem: Frontend shows empty table</div>
+          <p class="card-meta">Resolution</p>
+          <p>Click the <strong>Seed Database</strong> button on the top right of the dashboard to trigger <code>POST /api/seed</code>.</p>
+        </div>
+        <div class="card">
+          <div class="card-title">Problem: Countdown frozen at 00:00</div>
+          <p class="card-meta">Resolution</p>
+          <p>The scheduler processes expired deadlines every 20 seconds. You can click <strong>Skip Wait</strong> on the invoice to immediately trigger the next action.</p>
+        </div>
+        <div class="card">
+          <div class="card-title">Problem: Voice call modal has no sound</div>
+          <p class="card-meta">Resolution</p>
+          <p>Browser autoplay policies may block audio. Click the <strong>Replay</strong> button on the speech bubble to initiate audio playback.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 35. Glossary ─────────────────────────────────────────────────── -->
+    <section id="glossary">
+      <h2>35. Technical & Business Glossary</h2>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Term</th>
+              <th>Plain-English Definition</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>LTV (Lifetime Value)</strong></td>
+              <td>The total revenue a customer has historically paid to the merchant. Used to protect VIP accounts from harsh collection tactics.</td>
+            </tr>
+            <tr>
+              <td><strong>PTP (Promise to Pay)</strong></td>
+              <td>A formal commitment made by a debtor to clear their overdue invoice by an agreed future date (maximum 3 days under standard policy).</td>
+            </tr>
+            <tr>
+              <td><strong>Concession Ladder</strong></td>
+              <td>A stepped sequence of discounts (Tier 1 = 5%, Tier 2 = 8%, Tier 3 = 10%) offered only when debtors refuse full-price settlement.</td>
+            </tr>
+            <tr>
+              <td><strong>Anti-Gaming</strong></td>
+              <td>Rules that detect and penalize chronic discount demanders by clamping or eliminating discount eligibility on subsequent invoices.</td>
+            </tr>
+            <tr>
+              <td><strong>Margin Preserved</strong></td>
+              <td>The exact amount of revenue saved by resolving invoices without granting the merchant's maximum permissible discount.</td>
+            </tr>
+            <tr>
+              <td><strong>FSM (Finite State Machine)</strong></td>
+              <td>A mathematical model of states and transitions ensuring an invoice can only move through approved, predictable recovery stages.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ── Interactive JavaScript ─────────────────────────────────────────── -->
+  <script>
+    // ── Navigation Filtering ───────────────────────────────────────────────
+    function filterNav() {
+      const q = document.getElementById('nav-filter').value.toLowerCase();
+      const links = document.querySelectorAll('.nav-link');
+      links.forEach(link => {
+        const text = link.textContent.toLowerCase();
+        link.style.display = text.includes(q) ? 'block' : 'none';
+      });
+    }
+
+    // ── Interactive Concession Sandbox Calculator ──────────────────────────
+    function runCalculator() {
+      const gross = parseFloat(document.getElementById('calc-amount').value) || 0;
+      const cap = parseFloat(document.getElementById('calc-cap').value) || 0.10;
+      const months = parseInt(document.getElementById('calc-months').value) || 0;
+      const container = document.getElementById('calc-results');
+
+      let effCap = cap;
+      let maxTier = 3;
+      let penaltyText = "Clean history — full cap available.";
+
+      if (months >= 3) {
+        effCap = 0.0;
+        maxTier = 0;
+        penaltyText = "Excessive exploiter (3+ mo) — 0% discount permitted.";
+      } else if (months === 2) {
+        effCap = cap * 0.50;
+        maxTier = 1;
+        penaltyText = "Chronic exploiter (2 mo) — 50% cap penalty applied. Max Tier 1.";
+      } else if (months === 1) {
+        effCap = cap * 0.80;
+        maxTier = 2;
+        penaltyText = "Repeat discounter (1 mo) — 80% cap penalty applied. Max Tier 2.";
+      }
+
+      const tiers = [
+        { num: 1, name: "Tier 1", ratio: 0.50 },
+        { num: 2, name: "Tier 2", ratio: 0.80 },
+        { num: 3, name: "Tier 3 (Floor)", ratio: 1.00 }
+      ];
+
+      let html = '';
+      tiers.forEach(t => {
+        const isAccessible = t.num <= maxTier;
+        const rate = isAccessible ? (cap * t.ratio) : 0;
+        const discountAmt = gross * rate;
+        const netPayable = gross - discountAmt;
+        const boxClass = isAccessible ? 'calc-tier-box active' : 'calc-tier-box blocked';
+
+        html += `
+          <div class="${boxClass}">
+            <div style="font-weight: 700; color: ${isAccessible ? '#1e40af' : '#71717a'}; font-size: 13px; margin-bottom: 4px;">
+              ${t.name} ${isAccessible ? '✓ Active' : '⛔ Blocked'}
+            </div>
+            <div style="font-size: 11px; color: #52525b; margin-bottom: 6px;">
+              Rate: <strong>${(rate * 100).toFixed(2)}%</strong> (${(t.ratio * 100).toFixed(0)}% of cap)
+            </div>
+            <div style="font-size: 12px; color: #18181b; font-family: 'JetBrains Mono', monospace; font-weight: 600;">
+              Net: ₹${Math.round(netPayable).toLocaleString('en-IN')}
+            </div>
+            <div style="font-size: 10px; color: #71717a; margin-top: 2px;">
+              ${isAccessible ? `Deduction: -₹${Math.round(discountAmt).toLocaleString('en-IN')}` : penaltyText}
+            </div>
+          </div>
+        `;
+      });
+
+      container.innerHTML = html;
+    }
+
+    // Run on load
+    document.addEventListener('DOMContentLoaded', () => {
+      runCalculator();
+
+      // ScrollSpy for Active Sidebar Link
+      const sections = document.querySelectorAll('section');
+      const navLinks = document.querySelectorAll('.nav-link');
+
+      window.addEventListener('scroll', () => {
+        let current = '';
+        sections.forEach(section => {
+          const sectionTop = section.offsetTop - 100;
+          if (pageYOffset >= sectionTop) {
+            current = section.getAttribute('id');
+          }
+        });
+
+        navLinks.forEach(link => {
+          link.classList.remove('active');
+          if (link.getAttribute('href') === `#${current}`) {
+            link.classList.add('active');
+          }
+        });
+      });
+    });
+  </script>
+</body>
+</html>
