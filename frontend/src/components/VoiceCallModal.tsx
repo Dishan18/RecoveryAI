@@ -29,10 +29,24 @@ interface TurnHistoryItem {
   previousState: string;
   newState: string;
   intent: string;
+  authorizedDiscountRate?: number;
+  authorizedNetAmount?: number;
+  customerStatedDiscountPct?: number | null;
   audioBase64?: string;
   audioFormat?: string;
   actionExecuted?: string;
 }
+
+const INTENT_META: Record<string, { label: string; color: string }> = {
+  REQUEST_DISCOUNT: { label: "Discount Request", color: "bg-purple-50 text-purple-700 border-purple-200" },
+  PROMISE_TO_PAY: { label: "Promise to Pay", color: "bg-blue-50 text-blue-700 border-blue-200" },
+  PAY_NOW: { label: "Payment Now", color: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  DISPUTE: { label: "Dispute", color: "bg-red-50 text-red-700 border-red-200" },
+  TECHNICAL_PROBLEM: { label: "Technical Problem", color: "bg-amber-50 text-amber-700 border-amber-200" },
+  REQUEST_PAYMENT_LINK: { label: "Payment Link", color: "bg-indigo-50 text-indigo-700 border-indigo-200" },
+  REFUSAL: { label: "Refusal", color: "bg-rose-50 text-rose-700 border-rose-200" },
+  UNKNOWN: { label: "General Discussion", color: "bg-zinc-100 text-zinc-700 border-zinc-200" },
+};
 
 export function VoiceCallModal({ invoice: initialInvoice, isOpen, onClose, onStateUpdated }: VoiceCallModalProps) {
   const [currentInvoice, setCurrentInvoice] = useState<Invoice>(initialInvoice);
@@ -49,16 +63,16 @@ export function VoiceCallModal({ invoice: initialInvoice, isOpen, onClose, onSta
   const autoCloseTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const testPrompts = [
-    { label: "Transliterated PTP (3 Days)", text: "नहीं, आई नीड थ्री डेज़ टू कंप्लीट द पेमेंट" },
+    { label: "50% Discount (Hindi)", text: "मुझे फिफ्टी परसेंट डिस्काउंट चाहिए" },
+    { label: "50% Discount (English)", text: "I need a 50% discount" },
+    { label: "General Discount Request", text: "thoda discount de do" },
+    { label: "Refusal / Not Enough", text: "No, that's not enough discount" },
     { label: "PTP (3 Days Hindi)", text: "मैं 3 दिन में पेमेंट कर दूंगा" },
-    { label: "PTP Exceeds (>3 Days)", text: "मैं अगले हफ्ते / 5 दिन बाद करूँगा" },
-    { label: "Accept 3-Day Policy", text: "Haan 3 din mein theek hai" },
-    { label: "Reject 3-Day Policy", text: "Nahi 3 din mein nahi ho payega" },
-    { label: "2nd PTP (Breach Escalation)", text: "मेरे को और 2 दिन चाहिए" },
-    { label: "Agreed to Pay (1h Window)", text: "Main yeh payment kar dunga" },
-    { label: "1h Window Breach Refusal", text: "नहीं कर सकता" },
-    { label: "Turn 1 Refusal (5%)", text: "नहीं, मैं इसे आज सेटल नहीं कर पाऊंगा" },
-    { label: "Billing Dispute", text: "GST calculation wrong hai, billing error hai" },
+    { label: "Transliterated PTP (3 Days)", text: "नहीं, आई नीड थ्री डेज़ टू कंप्लीट द पेमेंट" },
+    { label: "Billing Dispute", text: "Invoice amount is wrong, billing error hai" },
+    { label: "Technical Gateway Failure", text: "UPI is not working, gateway timeout" },
+    { label: "Pay Now", text: "I'll pay now, link bhejo" },
+    { label: "Hard Refusal (Escalate)", text: "I refuse to pay, do whatever you want" },
   ];
 
   // Plays Sarvam AI (bulbul-v3) Native Voice Audio
@@ -206,6 +220,9 @@ export function VoiceCallModal({ invoice: initialInvoice, isOpen, onClose, onSta
         previousState: res.previous_state,
         newState: res.new_state,
         intent: res.parsed_intent,
+        authorizedDiscountRate: res.authorized_discount_rate || res.applied_discount,
+        authorizedNetAmount: res.authorized_net_amount,
+        customerStatedDiscountPct: res.customer_stated_discount_pct,
         audioBase64: res.audio_base64,
         audioFormat: res.audio_format,
         actionExecuted: res.action_executed,
@@ -390,45 +407,55 @@ export function VoiceCallModal({ invoice: initialInvoice, isOpen, onClose, onSta
           )}
 
           {/* Multi-Turn Conversation History */}
-          {turns.map((t) => (
-            <div key={t.turn} className="bg-white border border-zinc-200 rounded-lg p-3 space-y-2">
-              <div className="flex items-center justify-between flex-wrap gap-2 border-b border-zinc-100 pb-1.5">
-                <div className="flex items-center gap-1.5">
-                  <span className="font-bold text-zinc-500 text-[10px] uppercase">Turn {t.turn}:</span>
-                  <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold bg-zinc-100 text-zinc-700 border border-zinc-200">
-                    {t.previousState} → {t.newState}
+          {turns.map((t) => {
+            const meta = INTENT_META[t.intent] || { label: t.intent, color: "bg-blue-50 text-blue-700 border-blue-200" };
+            const hasConcession = Boolean(t.authorizedDiscountRate && t.authorizedDiscountRate > 0);
+
+            return (
+              <div key={t.turn} className="bg-white border border-zinc-200 rounded-lg p-3 space-y-2">
+                <div className="flex items-center justify-between flex-wrap gap-2 border-b border-zinc-100 pb-1.5">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="font-bold text-zinc-500 text-[10px] uppercase">Turn {t.turn}:</span>
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold bg-zinc-100 text-zinc-700 border border-zinc-200">
+                      {t.previousState} → {t.newState}
+                    </span>
+                    {hasConcession && (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-300">
+                        🏷️ Authorized {(t.authorizedDiscountRate! * 100).toFixed(0)}% Off {t.authorizedNetAmount ? `(Net: ${fmtInr(t.authorizedNetAmount)})` : ""}
+                      </span>
+                    )}
+                  </div>
+                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold border ${meta.color}`}>
+                    {meta.label}
                   </span>
                 </div>
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-                  {t.intent}
-                </span>
-              </div>
 
-              {/* Debtor Transcript */}
-              <div className="bg-zinc-50 border border-zinc-200 rounded p-2 text-zinc-800">
-                <div className="text-[10px] font-semibold text-zinc-500 uppercase mb-0.5">
-                  Debtor Transcript:
+                {/* Debtor Transcript */}
+                <div className="bg-zinc-50 border border-zinc-200 rounded p-2 text-zinc-800">
+                  <div className="text-[10px] font-semibold text-zinc-500 uppercase mb-0.5">
+                    Debtor Transcript:
+                  </div>
+                  <p className="italic text-xs">&ldquo;{t.debtorText}&rdquo;</p>
                 </div>
-                <p className="italic text-xs">&ldquo;{t.debtorText}&rdquo;</p>
-              </div>
 
-              {/* AI Agent Response */}
-              <div className="bg-emerald-50/70 border border-emerald-200 rounded p-2 text-emerald-950">
-                <div className="flex items-center justify-between mb-0.5">
-                  <span className="text-[10px] font-semibold text-emerald-800 uppercase">
-                    AI Agent Reply:
-                  </span>
-                  <button
-                    className="px-1.5 py-0.5 text-[10px] font-medium text-emerald-800 bg-white border border-emerald-300 rounded hover:bg-emerald-50 flex items-center gap-1"
-                    onClick={() => playSarvamAudio(t.audioBase64, t.audioFormat)}
-                  >
-                    <Play size={10} /> Replay
-                  </button>
+                {/* AI Agent Response */}
+                <div className="bg-emerald-50/70 border border-emerald-200 rounded p-2 text-emerald-950">
+                  <div className="flex items-center justify-between mb-0.5">
+                    <span className="text-[10px] font-semibold text-emerald-800 uppercase">
+                      AI Agent Reply:
+                    </span>
+                    <button
+                      className="px-1.5 py-0.5 text-[10px] font-medium text-emerald-800 bg-white border border-emerald-300 rounded hover:bg-emerald-50 flex items-center gap-1"
+                      onClick={() => playSarvamAudio(t.audioBase64, t.audioFormat)}
+                    >
+                      <Play size={10} /> Replay
+                    </button>
+                  </div>
+                  <p className="text-xs">{t.agentReply}</p>
                 </div>
-                <p className="text-xs">{t.agentReply}</p>
               </div>
-            </div>
-          ))}
+            );
+          })}
 
           {/* Quick Debtor Test Prompts (Sequential Ladder) */}
           <div className="space-y-1.5">

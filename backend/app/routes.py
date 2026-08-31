@@ -755,6 +755,7 @@ async def voice_transcribe_and_reply(
         invoice_id=inv.id,
         transcription=transcript,
         parsed_intent=turn_decision.intent,
+        confidence=turn_decision.confidence,
         ptp_deadline=turn_decision.ptp_date,
         dispute_reason=turn_decision.dispute_reason,
         agent_reply_text=reply_text,
@@ -766,6 +767,9 @@ async def voice_transcribe_and_reply(
         used_stt_fallback=used_stt_fallback,
         used_tts_fallback=tts_res.get("used_fallback", False),
         applied_discount=float(turn_decision.authorized_discount_rate),
+        authorized_discount_rate=float(turn_decision.authorized_discount_rate),
+        authorized_net_amount=float(turn_decision.authorized_net_amount),
+        customer_stated_discount_pct=float(turn_decision.customer_stated_discount_pct) if turn_decision.customer_stated_discount_pct is not None else None,
         action_executed=turn_decision.action_executed,
         trigger_auto_close=turn_decision.trigger_auto_close,
     )

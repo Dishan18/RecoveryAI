@@ -176,6 +176,7 @@ export interface VoiceCallResponse {
   invoice_id: string;
   transcription: string;
   parsed_intent: string;
+  confidence?: number;
   ptp_deadline: string | null;
   dispute_reason: string | null;
   agent_reply_text: string;
@@ -189,6 +190,9 @@ export interface VoiceCallResponse {
   used_stt_fallback: boolean;
   used_tts_fallback: boolean;
   applied_discount: number;
+  authorized_discount_rate?: number;
+  authorized_net_amount?: number;
+  customer_stated_discount_pct?: number | null;
   action_executed: string;
   trigger_auto_close?: boolean;
 }

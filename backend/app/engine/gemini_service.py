@@ -725,11 +725,11 @@ async def generate_dunning_copy(
 
 _STRUCTURED_INTENT_PROMPT = """\
 You are an intent classification engine for an Indian payment recovery conversational system.
-Analyze the debtor's speech and return a JSON object conforming strictly to this structure:
+Analyze the debtor's speech (in English, Hindi, Devanagari Hindi, or Latin Hinglish) and return a JSON object conforming strictly to this structure:
 - "intent": exactly one of ["PAY_NOW", "PROMISE_TO_PAY", "REQUEST_DISCOUNT", "REFUSAL", "DISPUTE", "TECHNICAL_PROBLEM", "REQUEST_PAYMENT_LINK", "UNKNOWN"]
 - "confidence": float between 0.0 and 1.0
-- "customer_stated_discount_pct": numeric percentage value (e.g. 25.0 for "25% discount") if the customer explicitly requested a discount percentage, else null. (Informational only)
-- "ptp_date_extracted": raw text timeframe or date if debtor promises future payment (e.g. "Friday", "Monday", "कल", "3 days"), else null.
+- "customer_stated_discount_pct": numeric percentage value (e.g. 50.0 for "50% discount", "fifty percent", "पचास प्रतिशत", "फिफ्टी परसेंट") if the customer explicitly requested a discount percentage, else null. (Informational only)
+- "ptp_date_extracted": raw text timeframe or date if debtor promises future payment (e.g. "Friday", "Monday", "कल", "3 days", "3 din", "तीन दिन"), else null.
 - "dispute_reason": summary of dispute if customer claims incorrect billing, GST, TDS, or quality issues, else null.
 - "sentiment": one of ["COOPERATIVE", "DISTRESSED", "EVASIVE", "HOSTILE"]
 
@@ -742,30 +742,66 @@ Context:
 
 Debtor Speech Transcript: "{transcript}"
 
-CRITICAL RULES:
-- If debtor asks for discount, concession, reduction, or specific percentage (e.g. "25% discount de do", "give me 50% off", "kuch discount milega?") -> "REQUEST_DISCOUNT"
-- If debtor states a future date or timeframe to pay (e.g. "I'll pay Friday", "Monday tak kar dunga", "kal dunga") -> "PROMISE_TO_PAY"
-- If debtor says payment gateway timed out, UPI failed, or technical transaction issue occurred -> "TECHNICAL_PROBLEM"
-- If debtor says invoice is wrong, GST/TDS mismatch, or dispute -> "DISPUTE"
-- If debtor rejects payment terms, says concession is too low, or refuses -> "REFUSAL"
+CRITICAL CLASSIFICATION RULES:
+- If debtor asks for discount, concession, reduction, or specific percentage (e.g. "मुझे फिफ्टी परसेंट डिस्काउंट चाहिए", "I need a discount of fifty percent", "मुझे पचास प्रतिशत डिस्काउंट चाहिए", "50% discount", "25% discount de do", "thoda discount de do", "discount chahiye", "kuch discount milega?", "agar aap discount doge toh payment kar dunga", "आई नीड अ डिस्काउंट ऑफ फिफ्टी परसेंट") -> "REQUEST_DISCOUNT" (customer_stated_discount_pct: extracted number, e.g. 50.0)
+- If debtor states a future date or timeframe to pay (e.g. "I'll pay in 3 days", "मैं तीन दिन में payment कर दूंगा", "3 din mein payment kar dunga", "I'll pay Friday", "Monday tak kar dunga", "कल दूंगा", "next week") -> "PROMISE_TO_PAY"
+- If debtor says payment gateway timed out, UPI failed, or technical transaction issue occurred (e.g. "UPI isn't working", "Payment gateway is failing", "मेरी payment नहीं जा रही") -> "TECHNICAL_PROBLEM"
+- If debtor says invoice is wrong, GST/TDS mismatch, or dispute (e.g. "Invoice amount is wrong", "ये amount गलत है", "I don't owe this amount") -> "DISPUTE"
+- If debtor rejects payment terms, says concession is too low, or refuses (e.g. "No, I won't pay", "nahi karunga", "nahi dunga", "not enough", "too high", "not possible") -> "REFUSAL"
 - If debtor asks for payment link/QR code -> "REQUEST_PAYMENT_LINK"
-- If debtor says they are paying right now -> "PAY_NOW"
+- If debtor says they are paying right now (e.g. "I'll pay now", "abhi payment kar raha hoon", "clearing it now") -> "PAY_NOW"
 - Do NOT include any reasoning or chain-of-thought fields. Output pure JSON only.
 """
 
+_HINDI_NUM_WORDS: dict[str, float] = {
+    "फिफ्टी": 50.0, "पचास": 50.0, "fifty": 50.0,
+    "पच्चीस": 25.0, "twenty five": 25.0, "twenty-five": 25.0,
+    "बीस": 20.0, "twenty": 20.0,
+    "पंद्रह": 15.0, "fifteen": 15.0,
+    "दस": 10.0, "ten": 10.0,
+    "पांच": 5.0, "पाँच": 5.0, "five": 5.0,
+    "तीस": 30.0, "thirty": 30.0,
+    "चालीस": 40.0, "forty": 40.0,
+    "साठ": 60.0, "sixty": 60.0,
+    "सत्तर": 70.0, "seventy": 70.0,
+    "अस्सी": 80.0, "eighty": 80.0,
+    "नब्बे": 90.0, "ninety": 90.0,
+    "सौ": 100.0, "hundred": 100.0,
+}
+
 
 def _rule_based_fallback_classification(transcript: str) -> dict:
-    """Deterministic rule-based intent classifier used when Gemini is offline."""
+    """Deterministic rule-based intent classifier with comprehensive Hindi/Hinglish/English support."""
     raw = transcript.lower().strip()
 
     # 1. Discount request
-    pct_match = re.search(r"(\d+(\.\d+)?)\s*(%|percent|pratishat|प्रतिशत)", raw)
-    has_discount_kw = any(w in raw for w in ["discount", "डिस्काउंट", "chhoot", "छूट", "kam karo", "concession", "off"])
-    if pct_match or has_discount_kw:
-        pct_val = float(pct_match.group(1)) if pct_match else None
+    has_discount_kw = any(w in raw for w in [
+        "discount", "डिस्काउंट", "chhoot", "छूट", "kam karo", "kam kar", "kam ho",
+        "concession", "waiver", "off", "less", "reduce", "रियायत", "कम करो", "कम कर"
+    ])
+    
+    # Try numeric regex first: e.g. "50%", "25 percent", "50 प्रतिशत", "50 परसेंट"
+    pct_val: float | None = None
+    pct_match = re.search(r"(\d+(\.\d+)?)\s*(%|percent|pratishat|प्रतिशत|परसेंट)?", raw)
+    if pct_match and pct_match.group(1):
+        try:
+            val = float(pct_match.group(1))
+            if 1.0 <= val <= 100.0 and (has_discount_kw or "%" in raw or "percent" in raw or "प्रतिशत" in raw or "परसेंट" in raw):
+                pct_val = val
+        except (ValueError, TypeError):
+            pass
+
+    # Try word numbers: e.g. "fifty percent", "फिफ्टी परसेंट", "पचास प्रतिशत", "twenty five"
+    if pct_val is None:
+        for word, num in _HINDI_NUM_WORDS.items():
+            if word in raw:
+                pct_val = num
+                break
+
+    if has_discount_kw or pct_val is not None:
         return {
             "intent": "REQUEST_DISCOUNT",
-            "confidence": 0.95 if pct_match else 0.85,
+            "confidence": 0.95 if pct_val is not None else 0.85,
             "customer_stated_discount_pct": pct_val,
             "ptp_date_extracted": None,
             "dispute_reason": None,
@@ -773,21 +809,27 @@ def _rule_based_fallback_classification(transcript: str) -> dict:
         }
 
     # 2. Dispute
-    if any(w in raw for w in ["galat", "गलत", "wrong", "dispute", "gst", "जीएसटी", "tds", "billing error", "deliverable", "dhokha"]):
+    if any(w in raw for w in [
+        "galat", "गलत", "wrong", "dispute", "gst", "जीएसटी", "tds", "टीडीएस",
+        "billing error", "deliverable", "dhokha", "not owe", "don't owe", "not my", "mismatch"
+    ]):
         return {
             "intent": "DISPUTE",
-            "confidence": 0.90,
+            "confidence": 0.95,
             "customer_stated_discount_pct": None,
             "ptp_date_extracted": None,
             "dispute_reason": f"Debtor stated discrepancy: {transcript[:100]}",
             "sentiment": "EVASIVE",
         }
 
-    # 3. Technical Problem (Gateway/UPI)
-    if any(w in raw for w in ["gateway", "upi", "यूपीआई", "failed", "fail", "timeout", "debit", "server", "bank issue"]):
+    # 3. Technical Problem (Gateway / UPI)
+    if any(w in raw for w in [
+        "gateway", "upi", "यूपीआई", "failed", "fail", "timeout", "debit", "server",
+        "bank issue", "payment nahi ja rahi", "nahi ho raha", "stuck", "error"
+    ]):
         return {
             "intent": "TECHNICAL_PROBLEM",
-            "confidence": 0.92,
+            "confidence": 0.95,
             "customer_stated_discount_pct": None,
             "ptp_date_extracted": None,
             "dispute_reason": None,
@@ -800,35 +842,39 @@ def _rule_based_fallback_classification(transcript: str) -> dict:
         "मंडे", "सोमवार", "ट्यूजडे", "मंगलवार", "वेडनसडे", "बुधवार", "थर्सडे", "गुरुवार", "फ्राइडे", "शुक्रवार", "सैटरडे", "शनिवार", "संडे", "रविवार",
         "kal", "कल", "parso", "parson", "परसों", "tomorrow",
         "3 din", "teen din", "तीन दिन", "3 days", "2 din", "do din", "दो दिन", "2 days",
+        "1 din", "ek din", "एक दिन", "1 day", "one day",
         "5 din", "5 days", "next week", "agle hafte", "अगले हफ्ते", "week", "hafte"
     ]
     for kw in ptp_keywords:
         if kw in raw:
             return {
                 "intent": "PROMISE_TO_PAY",
-                "confidence": 0.90,
+                "confidence": 0.95,
                 "customer_stated_discount_pct": None,
                 "ptp_date_extracted": kw,
                 "dispute_reason": None,
                 "sentiment": "COOPERATIVE",
             }
 
-    # 5. Request payment link
-    if any(w in raw for w in ["link bhejo", "payment link", "send link", "qr code", "qr", "link"]):
+    # 5. Pay Now
+    if any(w in raw for w in [
+        "pay now", "abhi payment", "abhi kar deta", "payment kar raha", "turant pay",
+        "clearing now", "abhi kar dunga", "main pay kar raha", "karta hoon", "kar deta hoon"
+    ]):
         return {
-            "intent": "REQUEST_PAYMENT_LINK",
-            "confidence": 0.90,
+            "intent": "PAY_NOW",
+            "confidence": 0.95,
             "customer_stated_discount_pct": None,
             "ptp_date_extracted": None,
             "dispute_reason": None,
             "sentiment": "COOPERATIVE",
         }
 
-    # 6. Pay Now
-    if any(w in raw for w in ["pay now", "abhi payment", "abhi kar deta", "payment kar raha", "turant pay", "clearing now"]):
+    # 6. Request payment link
+    if any(w in raw for w in ["link bhejo", "payment link", "send link", "qr code", "qr", "link", "लिंक"]):
         return {
-            "intent": "PAY_NOW",
-            "confidence": 0.90,
+            "intent": "REQUEST_PAYMENT_LINK",
+            "confidence": 0.95,
             "customer_stated_discount_pct": None,
             "ptp_date_extracted": None,
             "dispute_reason": None,
@@ -836,17 +882,20 @@ def _rule_based_fallback_classification(transcript: str) -> dict:
         }
 
     # 7. Refusal
-    if any(w in raw for w in ["nahi karunga", "nahi dunga", "नहीं", "refuse", "too low", "too high", "not possible", "nahi hoga", "no", "never"]):
+    if any(w in raw for w in [
+        "nahi karunga", "nahi dunga", "नहीं", "refuse", "too low", "too high",
+        "not possible", "nahi hoga", "no", "never", "won't pay", "kabhi nahi", "still not enough", "not enough"
+    ]):
         return {
             "intent": "REFUSAL",
-            "confidence": 0.88,
+            "confidence": 0.90,
             "customer_stated_discount_pct": None,
             "ptp_date_extracted": None,
             "dispute_reason": None,
             "sentiment": "EVASIVE",
         }
 
-    # Default fallback
+    # Default fallback: strictly UNKNOWN (never GENERAL_INQUIRY)
     return {
         "intent": "UNKNOWN",
         "confidence": 0.50,
@@ -895,7 +944,7 @@ async def classify_debtor_intent(
 
             return DebtorIntentClassification(
                 intent=parsed["intent"],
-                confidence=float(parsed.get("confidence", 0.90)),
+                confidence=float(parsed.get("confidence", 0.95)),
                 customer_stated_discount_pct=stated_discount,
                 ptp_date_extracted=parsed.get("ptp_date_extracted"),
                 dispute_reason=parsed.get("dispute_reason"),
@@ -933,6 +982,8 @@ async def generate_grounded_speech(
     authoritative numbers provided by the deterministic Policy Engine.
     """
     state = turn_decision.resulting_state
+    cust_name = invoice_context.get("customer_name", "Customer")
+    merchant_name = invoice_context.get("merchant_name", "our platform")
 
     # 1. Terminal Escalation Invariant
     if state == "ESCALATED_HUMAN":
@@ -957,18 +1008,33 @@ async def generate_grounded_speech(
             "Payment link aapke mobile par bhej diya gaya hai."
         )
 
-    # 4. Concession Tiers
+    # 4. Concession Tiers & Discount Handling
     if state in ("TIER_1_DISCOUNT", "TIER_2_DISCOUNT", "TIER_3_FLOOR"):
         pct_str = f"{turn_decision.authorized_discount_rate * 100:.0f}%"
         net_str = f"₹{turn_decision.authorized_net_amount:,.0f}"
+
+        # If customer asked for a high discount (e.g. 50%) but policy authorized 5%
+        if turn_decision.customer_stated_discount_pct and turn_decision.customer_stated_discount_pct > (turn_decision.authorized_discount_rate * 100):
+            req_pct = f"{turn_decision.customer_stated_discount_pct:.0f}%"
+            return (
+                f"I understand you are asking for a {req_pct} discount. The maximum authorized concession available "
+                f"at this stage is {pct_str}, bringing your payable balance to {net_str}. "
+                "Would you like me to send you the payment link?"
+            )
+
         if state == "TIER_3_FLOOR":
             return (
-                f"Humari policy ke mutabik yeh humara final discount offer hai: {pct_str} concession, "
-                f"jisse aapko sirf {net_str} pay karna hoga. Iske baad koi aur discount sambhav nahi hoga."
+                f"Humari policy ke mutabik yeh hamara final discount offer hai: {pct_str} concession, "
+                f"jisse aapko sirf {net_str} pay karna hoga. Iske baad koi aur discount sambhav nahi hoga. Kya main link bhej doon?"
+            )
+        elif state == "TIER_2_DISCOUNT":
+            return (
+                f"Hum samajh sakte hain. Hum ise badhakar {pct_str} discount kar sakte hain, "
+                f"jisse aapki net payable amount {net_str} ho jayegi. Kya aap ise finalize karenge?"
             )
         return (
-            f"Hum aapko {pct_str} ka authorized discount offer kar sakte hain, jisse aapki final "
-            f"payable amount {net_str} ho jayegi. Kya main payment link bhej doon?"
+            f"We can offer you an authorized {pct_str} concession today, bringing your payable balance to "
+            f"{net_str}. Would you like me to send you the payment link?"
         )
 
     # 5. Technical Gateway Issue
@@ -989,7 +1055,7 @@ async def generate_grounded_speech(
     # 7. Safe Default
     net_str = f"₹{turn_decision.authorized_net_amount:,.0f}"
     return (
-        f"Aapki total gross outstanding amount {net_str} hai. Kripya batayein ki aap payment "
-        "abhi complete karna chahenge ya koi query hai?"
+        f"Namaste {cust_name} ji! Aapki total gross outstanding amount {net_str} hai with {merchant_name}. "
+        "Kripya batayein ki aap payment abhi complete karna chahenge ya koi query hai?"
     )
 

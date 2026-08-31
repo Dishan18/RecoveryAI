@@ -288,8 +288,9 @@ class VoiceCallResponse(BaseModel):
     invoice_id: uuid.UUID
     transcription: str
     parsed_intent: str
-    ptp_deadline: datetime | None
-    dispute_reason: str | None
+    confidence: float = 1.0
+    ptp_deadline: datetime | None = None
+    dispute_reason: str | None = None
     agent_reply_text: str
     audio_base64: str
     audio_format: str = "audio/wav"
@@ -299,6 +300,9 @@ class VoiceCallResponse(BaseModel):
     used_stt_fallback: bool = False
     used_tts_fallback: bool = False
     applied_discount: float = 0.0
+    authorized_discount_rate: float = 0.0
+    authorized_net_amount: float = 0.0
+    customer_stated_discount_pct: float | None = None
     action_executed: str = ""
     trigger_auto_close: bool = False
 
