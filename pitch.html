@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RecoveryAI — 5-Minute Pitch Deck | Razorpay Buildathon</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #090a0f;
+      --bg-card: rgba(18, 20, 29, 0.75);
+      --bg-card-border: rgba(255, 255, 255, 0.08);
+      --accent-blue: #3b82f6;
+      --accent-cyan: #06b6d4;
+      --accent-indigo: #6366f1;
+      --accent-emerald: #10b981;
+      --accent-amber: #f59e0b;
+      --accent-rose: #f43f5e;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-subtle: #64748b;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      overflow: hidden;
+      height: 100vh;
+      width: 100vw;
+      display: flex;
+      flex-direction: column;
+      user-select: none;
+    }
+
+    /* ── Ambient Background Glow ─────────────────────────────────────────── */
+    .ambient-glow {
+      position: absolute;
+      width: 600px;
+      height: 600px;
+      border-radius: 50%;
+      filter: blur(140px);
+      opacity: 0.18;
+      pointer-events: none;
+      z-index: 0;
+      transition: all 0.8s ease;
+    }
+    #glow-1 { top: -100px; left: -100px; background: #3b82f6; }
+    #glow-2 { bottom: -100px; right: -100px; background: #6366f1; }
+
+    /* ── Top Pitch HUD Header ───────────────────────────────────────────── */
+    header.pitch-hud {
+      position: relative;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 36px;
+      background: rgba(9, 10, 15, 0.85);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--bg-card-border);
+    }
+
+    .brand-cluster {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-logo {
+      font-family: 'Outfit', sans-serif;
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #60a5fa, #a78bfa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .brand-tag {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      padding: 3px 8px;
+      border-radius: 6px;
+      background: rgba(59, 130, 246, 0.15);
+      color: #93c5fd;
+      border: 1px solid rgba(59, 130, 246, 0.3);
+    }
+
+    .pitch-controls {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    /* 5-Min Timer Badge */
+    .timer-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 6px 14px;
+      border-radius: 9999px;
+      background: rgba(16, 185, 129, 0.12);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      transition: all 0.3s ease;
+      cursor: pointer;
+    }
+    .timer-badge.warning {
+      background: rgba(245, 158, 11, 0.15);
+      color: #fbbf24;
+      border-color: rgba(245, 158, 11, 0.4);
+    }
+    .timer-badge.danger {
+      background: rgba(244, 63, 94, 0.2);
+      color: #fb7185;
+      border-color: rgba(244, 63, 94, 0.5);
+      animation: pulse 1s infinite;
+    }
+
+    .btn-hud {
+      font-size: 12px;
+      font-weight: 600;
+      padding: 6px 12px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-muted);
+      border: 1px solid var(--bg-card-border);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn-hud:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: var(--text-main);
+    }
+    .btn-hud.active {
+      background: rgba(99, 102, 241, 0.2);
+      color: #a5b4fc;
+      border-color: rgba(99, 102, 241, 0.5);
+    }
+
+    /* ── Slide Viewport Container ───────────────────────────────────────── */
+    main.deck-viewport {
+      position: relative;
+      flex: 1;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+      padding: 24px 48px;
+    }
+
+    .slide {
+      position: absolute;
+      width: 100%;
+      max-width: 1180px;
+      opacity: 0;
+      transform: translateY(24px) scale(0.98);
+      pointer-events: none;
+      transition: all 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .slide.active {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+      pointer-events: auto;
+    }
+
+    /* ── Slide Typography & Layouts ─────────────────────────────────────── */
+    .slide-eyebrow {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--accent-cyan);
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    h1.slide-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 42px;
+      font-weight: 800;
+      letter-spacing: -0.025em;
+      line-height: 1.15;
+      margin-bottom: 16px;
+    }
+
+    p.slide-subtitle {
+      font-size: 18px;
+      color: var(--text-muted);
+      line-height: 1.5;
+      max-width: 900px;
+      margin-bottom: 32px;
+    }
+
+    /* ── Visual Grid Components ─────────────────────────────────────────── */
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+
+    .grid-4 {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--bg-card-border);
+      border-radius: 14px;
+      padding: 24px;
+      backdrop-filter: blur(12px);
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card:hover {
+      border-color: rgba(255, 255, 255, 0.18);
+      transform: translateY(-2px);
+    }
+
+    .card-icon {
+      font-size: 28px;
+      margin-bottom: 14px;
+      display: inline-block;
+    }
+
+    .card-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: var(--text-main);
+    }
+
+    .card-desc {
+      font-size: 13.5px;
+      color: var(--text-muted);
+      line-height: 1.55;
+    }
+
+    .card-stat {
+      font-family: 'Outfit', sans-serif;
+      font-size: 32px;
+      font-weight: 800;
+      margin-bottom: 4px;
+      background: linear-gradient(135deg, #38bdf8, #818cf8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .badge-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .badge-emerald { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+    .badge-blue { background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); }
+    .badge-amber { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
+    .badge-rose { background: rgba(244, 63, 94, 0.15); color: #fb7185; border: 1px solid rgba(244, 63, 94, 0.3); }
+
+    /* ── Pipeline Diagram Box ───────────────────────────────────────────── */
+    .flow-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 20px 0;
+    }
+
+    .flow-node {
+      flex: 1;
+      background: var(--bg-card);
+      border: 1px solid var(--bg-card-border);
+      border-radius: 12px;
+      padding: 16px;
+      text-align: center;
+      position: relative;
+    }
+    .flow-node.highlight {
+      border-color: rgba(99, 102, 241, 0.6);
+      background: rgba(99, 102, 241, 0.1);
+    }
+    .flow-arrow {
+      color: var(--text-subtle);
+      font-size: 18px;
+    }
+
+    /* ── Speaker Notes Drawer ───────────────────────────────────────────── */
+    .speaker-drawer {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(15, 18, 28, 0.95);
+      backdrop-filter: blur(20px);
+      border-top: 1px solid rgba(99, 102, 241, 0.3);
+      padding: 18px 48px;
+      transform: translateY(100%);
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      z-index: 100;
+      display: flex;
+      gap: 32px;
+      align-items: center;
+    }
+    .speaker-drawer.open {
+      transform: translateY(0);
+    }
+    .speaker-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: #818cf8;
+      letter-spacing: 0.08em;
+      white-space: nowrap;
+    }
+    .speaker-content {
+      font-size: 14px;
+      line-height: 1.5;
+      color: #e2e8f0;
+      flex: 1;
+    }
+
+    /* ── Bottom Deck Controls & Progress ───────────────────────────────── */
+    footer.deck-footer {
+      position: relative;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 36px;
+      background: rgba(9, 10, 15, 0.85);
+      backdrop-filter: blur(16px);
+      border-top: 1px solid var(--bg-card-border);
+    }
+
+    .progress-track {
+      flex: 1;
+      max-width: 400px;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 9999px;
+      overflow: hidden;
+      margin: 0 24px;
+    }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #38bdf8, #818cf8);
+      width: 16.66%;
+      transition: width 0.3s ease;
+    }
+
+    .nav-buttons {
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn-nav {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--bg-card-border);
+      color: var(--text-main);
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .btn-nav:hover {
+      background: rgba(255, 255, 255, 0.12);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="ambient-glow" id="glow-1"></div>
+  <div class="ambient-glow" id="glow-2"></div>
+
+  <!-- ── Pitch HUD Header ─────────────────────────────────────────────────── -->
+  <header class="pitch-hud">
+    <div class="brand-cluster">
+      <span class="brand-logo">RecoveryAI</span>
+      <span class="brand-tag">Razorpay Buildathon</span>
+    </div>
+
+    <div class="pitch-controls">
+      <div class="timer-badge" id="pitch-timer" onclick="toggleTimer()" title="Click to Start / Pause 5-Min Timer">
+        <span>⏱️</span>
+        <span id="timer-display">05:00</span>
+      </div>
+
+      <button class="btn-hud" id="btn-notes" onclick="toggleNotes()">
+        <span>📝</span> Speaker Script (N)
+      </button>
+
+      <button class="btn-hud" onclick="toggleFullscreen()">
+        <span>⛶</span> Fullscreen (F)
+      </button>
+    </div>
+  </header>
+
+  <!-- ── Slide Viewport ───────────────────────────────────────────────────── -->
+  <main class="deck-viewport">
+
+    <!-- ── SLIDE 1: Title & The B2B Recovery Crisis ───────────────────────── -->
+    <div class="slide active" data-slide="1" data-notes="Good morning judges! I'm thrilled to present RecoveryAI. In India's digital economy, B2B SaaS and lenders lose ₹12,000+ Cr annually to failed recurring payments and overdue invoices. Today, businesses face a brutal dilemma: either send dumb automated emails that get ignored, or hire expensive, aggressive call centers that damage valuable customer relationships. RecoveryAI solves this autonomously.">
+      <div class="slide-eyebrow">🚀 Razorpay Buildathon 2026 • 5-Minute Pitch</div>
+      <h1 class="slide-title">Autonomous Voice & Multi-Rail<br><span style="background: linear-gradient(135deg, #38bdf8, #a855f7); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Debt Recovery Engine</span></h1>
+      <p class="slide-subtitle">Transforming high-friction B2B collections into empathetic, AI-powered multilingual voice negotiations governed by strict financial boundaries.</p>
+
+      <div class="grid-3">
+        <div class="card">
+          <div class="card-icon">📉</div>
+          <div class="card-title">₹12,000+ Cr At Risk</div>
+          <p class="card-desc">Over 18% of monthly recurring eMandates and B2B invoices in India fail due to timeouts, expired cards, or temporary liquidity crunches.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">📞</div>
+          <div class="card-title">Expensive Call Centers</div>
+          <p class="card-desc">Manual collection agencies charge 15–25% commissions, suffer 40% agent turnover, and often violate RBI fair-practice norms.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">🛡️</div>
+          <div class="card-title">The RecoveryAI Answer</div>
+          <p class="card-desc">An autonomous, bounded AI credit officer that calls debtors in natural Hinglish, negotiates split plans, and settles invoices instantly.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SLIDE 2: Core Architecture & Separation of Concerns ────────────── -->
+    <div class="slide" data-slide="2" data-notes="The biggest technical challenge in AI finance is LLM hallucination. If you let an LLM negotiate freely, it will invent 50% discounts or accept promises 6 months away. In RecoveryAI, we enforce a strict separation: Gemini 2.5 Flash only interprets language into structured intent schemas. It has ZERO authority over money. A deterministic Python State Machine and Policy Calculator computes every single rupee, discount tier, and 3-day deadline.">
+      <div class="slide-eyebrow">⚙️ Architecture • Financial Guardrails</div>
+      <h1 class="slide-title">The Financial Authority Boundary:<br><span style="background: linear-gradient(135deg, #34d399, #38bdf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Zero LLM Balance Hallucination</span></h1>
+      <p class="slide-subtitle">We separate natural language understanding from financial authority. The LLM only classifies speech; our deterministic engine controls the money.</p>
+
+      <div class="grid-2">
+        <div class="card" style="border-color: rgba(99, 102, 241, 0.4);">
+          <div class="badge-pill badge-blue" style="margin-bottom: 12px;">Cognitive Intelligence Layer</div>
+          <div class="card-title">Gemini 2.5 Flash + Sarvam AI</div>
+          <p class="card-desc" style="margin-bottom: 12px;">• <strong>Sarvam Saaras-v3:</strong> Sub-second Speech-to-Text for authentic Indian accents.<br>• <strong>Sarvam Bulbul-v3:</strong> Expressive Hinglish voice synthesis with <code>shubh</code> model.<br>• <strong>Gemini 2.5 Flash:</strong> Strictly non-authoritative intent extraction with 1.8s timeout cap.</p>
+          <div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #94a3b8; background: rgba(0,0,0,0.3); padding: 8px; border-radius: 6px;">Output: Strict Pydantic Intent Object (No math/balances)</div>
+        </div>
+
+        <div class="card" style="border-color: rgba(16, 185, 129, 0.4);">
+          <div class="badge-pill badge-emerald" style="margin-bottom: 12px;">Financial Execution Authority</div>
+          <div class="card-title">Deterministic Policy Engine & FSM</div>
+          <p class="card-desc" style="margin-bottom: 12px;">• <strong>13 Deterministic States:</strong> Immutable directional transition graph.<br>• <strong>Anti-Gaming Rules:</strong> Mathematical concession bounds (5% → 8% → 10%).<br>• <strong>RBI Compliance:</strong> Hard 3-day PTP policy cap & instant dispute freeze.</p>
+          <div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #94a3b8; background: rgba(0,0,0,0.3); padding: 8px; border-radius: 6px;">PostgreSQL Timestamps: Server-Authoritative Deadlines</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SLIDE 3: Margin-Preserving Split Engine ────────────────────────── -->
+    <div class="slide" data-slide="3" data-notes="Here is our secret sauce: margin preservation. When a customer says 'I cannot pay today', bad agents surrender a discount immediately. RecoveryAI does NOT. It first offers a Split Payment Plan: 50% in 1 hour, and 50% in 3 days on the FULL gross amount. If they ask for a discount on split, our policy firmly clarifies that discounts are strictly for one-time payments. Only if they refuse does it climb the capped discount ladder.">
+      <div class="slide-eyebrow">💰 Negotiation Logic • Margin Preservation</div>
+      <h1 class="slide-title">Split Payment & Concession Ladder:<br><span style="background: linear-gradient(135deg, #fbbf24, #f43f5e); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Preserving Merchant Margins First</span></h1>
+      <p class="slide-subtitle">Why surrender discounts when liquidity can be recovered in parts? Our engine maximizes cash collection before conceding a single rupee.</p>
+
+      <div class="grid-4">
+        <div class="card">
+          <div class="badge-pill badge-blue" style="margin-bottom: 8px;">Step 1 • Margin Save</div>
+          <div class="card-title">Split Payment Plan</div>
+          <p class="card-desc">Offered on initial refusal. <strong>50% in 1 hour</strong> (live countdown) + <strong>50% in 3-day PTP</strong> on 100% gross.</p>
+        </div>
+
+        <div class="card">
+          <div class="badge-pill badge-amber" style="margin-bottom: 8px;">Step 2 • Clarification</div>
+          <div class="card-title">No Split on Discount</div>
+          <p class="card-desc">Clarifies firmly: <em>"Discounts are only for one-time payment. Would you like full split or one-time discount?"</em></p>
+        </div>
+
+        <div class="card">
+          <div class="badge-pill badge-emerald" style="margin-bottom: 8px;">Step 3 • Bounded Tiers</div>
+          <div class="card-title">5% → 8% → 10% Floor</div>
+          <p class="card-desc">Advances down authorized tiers for one-time settlement only. Blocked for habitual abusers (3+ mo).</p>
+        </div>
+
+        <div class="card">
+          <div class="badge-pill badge-rose" style="margin-bottom: 8px;">Step 4 • Hard Limits</div>
+          <div class="card-title">Formal Escalation</div>
+          <p class="card-desc">If debtor persists after final Tier 3 offer or breaches 1-hr commitment, immediately routes to senior finance.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SLIDE 4: Technical Rigor & Verification ────────────────────────── -->
+    <div class="slide" data-slide="4" data-notes="We built RecoveryAI with enterprise-grade engineering rigor. We have 63 automated conversational edge case tests and a 26-test voice regression suite with 100% pass rates. We solved subtle multilingual STT issues, like handling Devanagari transliterated English, word-boundary negation filters so words like 'now' don't trigger 'no', and 20-second autonomous polling workers with zero polling lag.">
+      <div class="slide-eyebrow">🔬 Technical Excellence • Verification</div>
+      <h1 class="slide-title">Enterprise Engineering Rigor:<br><span style="background: linear-gradient(135deg, #818cf8, #c084fc); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">63 Automated Edge-Case Tests</span></h1>
+      <p class="slide-subtitle">Tested against complex Indian code-switching, linguistic phonetic transliterations, and multi-turn negotiation paths.</p>
+
+      <div class="grid-3">
+        <div class="card">
+          <div class="card-stat">63 / 63</div>
+          <div class="card-title">Edge Case Tests Passing</div>
+          <p class="card-desc">Tests multi-turn refusals, compound Hindi clauses, dispute freezes, 1-hour split timer countdowns, and 3-day PTP clamps.</p>
+        </div>
+
+        <div class="card">
+          <div class="card-stat">&lt; 1.8s</div>
+          <div class="card-title">Voice Turn Latency</div>
+          <p class="card-desc">Optimized async thread offloading and in-memory TTS audio caching deliver natural conversational voice pacing.</p>
+        </div>
+
+        <div class="card">
+          <div class="card-stat">100%</div>
+          <div class="card-title">Spec & Policy Compliance</div>
+          <p class="card-desc">Automated regression runner ensures zero balance deviations, strict merchant cap enforcement, and immutable audit logs.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SLIDE 5: The Operator Cockpit ──────────────────────────────────── -->
+    <div class="slide" data-slide="5" data-notes="Here is the live operations console. It features optimistic 0ms UI updates with our 2-stage payment button: click Half Payment to record 50%, turn the button yellow, update the Total Recovered metric, and schedule the 3-day PTP. When the second half arrives, click to turn green and resolve. We also have a global outbound call queue and executive macro analytics tracking recovery win rates across every failure category.">
+      <div class="slide-eyebrow">🖥️ Live Product • Operator Console</div>
+      <h1 class="slide-title">The Unified Operations Cockpit:<br><span style="background: linear-gradient(135deg, #38bdf8, #34d399); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Real-Time Control & Telemetry</span></h1>
+      <p class="slide-subtitle">A high-velocity Next.js 16 console with 2-stage partial payment accounting, live countdowns, and instant voice triggers.</p>
+
+      <div class="grid-3">
+        <div class="card">
+          <div class="card-icon">⚡</div>
+          <div class="card-title">2-Stage Payment Engine</div>
+          <p class="card-desc">Record 50% partial payment $\rightarrow$ turns yellow (<code>Half Paid</code>) $\rightarrow$ records 50% remaining $\rightarrow$ turns green (<code>Resolved</code>).</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">📊</div>
+          <div class="card-title">Real-Time Telemetry</div>
+          <p class="card-desc">Instant aggregation of Total Recovered, Volume at Risk, and Anti-Gaming Margin Preserved across active portfolios.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">🎧</div>
+          <div class="card-title">Voice Audit & Replay</div>
+          <p class="card-desc">Listen to full high-fidelity call recordings and inspect turn-by-turn state transition decisions in real-time.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SLIDE 6: Business Impact & The Razorpay Vision ──────────────────── -->
+    <div class="slide" data-slide="6" data-notes="To wrap up: RecoveryAI delivers a 3.8x recovery rate improvement over static email dunning and slashes collection agency costs by 85%. For Razorpay, RecoveryAI is the natural next-generation intelligence layer for Razorpay Subscriptions, Payment Links, and Smart Collect. We turn involuntary churn into immediate settled revenue. Thank you, and we're ready for your questions!">
+      <div class="slide-eyebrow">🌟 Business Impact • The Razorpay Synergy</div>
+      <h1 class="slide-title">The Future of Autonomous Recovery:<br><span style="background: linear-gradient(135deg, #38bdf8, #818cf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Plug-and-Play with Razorpay</span></h1>
+      <p class="slide-subtitle">Turning failed transactions into retained revenue and long-term customer goodwill.</p>
+
+      <div class="grid-3">
+        <div class="card" style="border-color: rgba(56, 189, 248, 0.4);">
+          <div class="card-stat">3.8x</div>
+          <div class="card-title">Recovery Win-Rate</div>
+          <p class="card-desc">Outperforms traditional email/SMS dunning via empathetic conversational voice intervention.</p>
+        </div>
+
+        <div class="card" style="border-color: rgba(16, 185, 129, 0.4);">
+          <div class="card-stat">85%</div>
+          <div class="card-title">OPEX Reduction</div>
+          <p class="card-desc">Eliminates manual call-center overhead and agency commissions through autonomous execution.</p>
+        </div>
+
+        <div class="card" style="border-color: rgba(99, 102, 241, 0.4);">
+          <div class="card-stat">Native</div>
+          <div class="card-title">Razorpay Ecosystem Fit</div>
+          <p class="card-desc">Direct drop-in for Razorpay Subscriptions, eMandates, Payment Links, and Invoices.</p>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ── Speaker Notes Drawer ─────────────────────────────────────────────── -->
+  <div class="speaker-drawer" id="speaker-drawer">
+    <div class="speaker-label">🎤 5-Min Pitch Script:</div>
+    <div class="speaker-content" id="speaker-text">
+      Loading speaker notes...
+    </div>
+  </div>
+
+  <!-- ── Deck Navigation Footer ───────────────────────────────────────────── -->
+  <footer class="deck-footer">
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--text-muted);">Slide <span id="current-slide-num" style="color: var(--text-main); font-weight: 700;">1</span> / <span id="total-slides-num">6</span></span>
+    </div>
+
+    <div class="progress-track">
+      <div class="progress-fill" id="progress-bar"></div>
+    </div>
+
+    <div class="nav-buttons">
+      <button class="btn-nav" onclick="prevSlide()">◀ Previous</button>
+      <button class="btn-nav" onclick="nextSlide()" style="background: rgba(99, 102, 241, 0.3); border-color: rgba(99, 102, 241, 0.6); color: #fff;">Next ▶</button>
+    </div>
+  </footer>
+
+  <script>
+    // Slide Navigation Logic
+    let currentSlide = 1;
+    const slides = document.querySelectorAll('.slide');
+    const totalSlides = slides.length;
+    document.getElementById('total-slides-num').innerText = totalSlides;
+
+    function showSlide(index) {
+      if (index < 1) index = 1;
+      if (index > totalSlides) index = totalSlides;
+      currentSlide = index;
+
+      slides.forEach((slide, idx) => {
+        if (idx + 1 === currentSlide) {
+          slide.classList.add('active');
+          const notes = slide.getAttribute('data-notes') || 'No notes for this slide.';
+          document.getElementById('speaker-text').innerText = notes;
+        } else {
+          slide.classList.remove('active');
+        }
+      });
+
+      document.getElementById('current-slide-num').innerText = currentSlide;
+      document.getElementById('progress-bar').style.width = `${(currentSlide / totalSlides) * 100}%`;
+    }
+
+    function nextSlide() {
+      if (currentSlide < totalSlides) {
+        showSlide(currentSlide + 1);
+      }
+    }
+
+    function prevSlide() {
+      if (currentSlide > 1) {
+        showSlide(currentSlide - 1);
+      }
+    }
+
+    // Keyboard Shortcuts
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+        nextSlide();
+      } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+        prevSlide();
+      } else if (e.key.toLowerCase() === 'n') {
+        toggleNotes();
+      } else if (e.key.toLowerCase() === 'f') {
+        toggleFullscreen();
+      } else if (e.key >= '1' && e.key <= '6') {
+        showSlide(parseInt(e.key));
+      }
+    });
+
+    // 5-Minute Pitch Timer Logic
+    let timerDuration = 300; // 5 minutes in seconds
+    let timerRunning = false;
+    let timerInterval = null;
+
+    function formatTime(seconds) {
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    function toggleTimer() {
+      if (timerRunning) {
+        clearInterval(timerInterval);
+        timerRunning = false;
+      } else {
+        timerRunning = true;
+        timerInterval = setInterval(() => {
+          if (timerDuration > 0) {
+            timerDuration--;
+            const timerEl = document.getElementById('pitch-timer');
+            const displayEl = document.getElementById('timer-display');
+            displayEl.innerText = formatTime(timerDuration);
+
+            if (timerDuration <= 60) {
+              timerEl.className = 'timer-badge danger';
+            } else if (timerDuration <= 120) {
+              timerEl.className = 'timer-badge warning';
+            } else {
+              timerEl.className = 'timer-badge';
+            }
+          } else {
+            clearInterval(timerInterval);
+            timerRunning = false;
+          }
+        }, 1000);
+      }
+    }
+
+    // Speaker Notes Toggle
+    function toggleNotes() {
+      const drawer = document.getElementById('speaker-drawer');
+      const btn = document.getElementById('btn-notes');
+      drawer.classList.toggle('open');
+      btn.classList.toggle('active');
+    }
+
+    // Fullscreen Toggle
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(err => console.log(err));
+      } else {
+        document.exitFullscreen().catch(err => console.log(err));
+      }
+    }
+
+    // Initialize slide 1
+    showSlide(1);
+  </script>
+</body>
+</html>

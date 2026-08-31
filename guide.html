@@ -1086,49 +1086,61 @@
               <td><code>TRIGGERED</code></td>
               <td>Active</td>
               <td>Payment failure ingested; initial 10m countdown active before reminder.</td>
-              <td><code>REMINDER_SENT</code>, <code>PTP_ACTIVE</code>, <code>TIER_1_DISCOUNT</code>, <code>LINK_SENT</code>, <code>ESCALATED_HUMAN</code></td>
+              <td><code>REMINDER_SENT</code>, <code>SPLIT_OFFERED</code>, <code>SPLIT_FIRST_HALF_PENDING</code>, <code>PTP_ACTIVE</code>, <code>TIER_1_DISCOUNT</code>, <code>LINK_SENT</code>, <code>ESCALATED_HUMAN</code></td>
             </tr>
             <tr>
               <td><code>DIAGNOSED</code></td>
               <td>Legacy/Audit</td>
               <td>Diagnosis logged inside the unified reminder dispatch step.</td>
-              <td><code>REMINDER_SENT</code>, <code>LINK_SENT</code>, <code>TIER_1_DISCOUNT</code>, <code>PTP_ACTIVE</code></td>
+              <td><code>REMINDER_SENT</code>, <code>SPLIT_OFFERED</code>, <code>SPLIT_FIRST_HALF_PENDING</code>, <code>LINK_SENT</code>, <code>TIER_1_DISCOUNT</code>, <code>PTP_ACTIVE</code></td>
             </tr>
             <tr>
               <td><code>REMINDER_SENT</code></td>
               <td>Active</td>
               <td>WhatsApp/SMS reminder dispatched; 10m countdown active before voice call queueing.</td>
-              <td><code>PTP_ACTIVE</code>, <code>LINK_SENT</code>, <code>TIER_1_DISCOUNT</code>, <code>ESCALATED_HUMAN</code>, <code>RESOLVED</code></td>
+              <td><code>SPLIT_OFFERED</code>, <code>SPLIT_FIRST_HALF_PENDING</code>, <code>PTP_ACTIVE</code>, <code>LINK_SENT</code>, <code>TIER_1_DISCOUNT</code>, <code>ESCALATED_HUMAN</code>, <code>RESOLVED</code></td>
+            </tr>
+            <tr>
+              <td><code>SPLIT_OFFERED</code></td>
+              <td>Margin Preservation</td>
+              <td>Offered 50% immediate + 50% in 3 days upon initial refusal before conceding any discounts.</td>
+              <td><code>SPLIT_FIRST_HALF_PENDING</code>, <code>PTP_ACTIVE</code>, <code>LINK_SENT</code>, <code>TIER_1_DISCOUNT</code>, <code>RESOLVED</code>, <code>ESCALATED_HUMAN</code>, <code>FROZEN_DISPUTE</code></td>
+            </tr>
+            <tr>
+              <td><code>SPLIT_FIRST_HALF_PENDING</code></td>
+              <td>Active (1-Hour Countdown)</td>
+              <td>Debtor accepted split; 1-hour window to complete first 50% payment before follow-up call.</td>
+              <td><code>RESOLVED</code>, <code>PTP_ACTIVE</code>, <code>LINK_SENT</code>, <code>TIER_1_DISCOUNT</code>, <code>ESCALATED_HUMAN</code>, <code>FROZEN_DISPUTE</code></td>
             </tr>
             <tr>
               <td><code>LINK_SENT</code></td>
               <td>Active</td>
               <td>Alternate UPI/Card payment link dispatched with 1-hour settlement window.</td>
-              <td><code>RESOLVED</code>, <code>TIER_1_DISCOUNT</code>, <code>PTP_ACTIVE</code>, <code>ESCALATED_HUMAN</code></td>
+              <td><code>RESOLVED</code>, <code>SPLIT_OFFERED</code>, <code>SPLIT_FIRST_HALF_PENDING</code>, <code>TIER_1_DISCOUNT</code>, <code>PTP_ACTIVE</code>, <code>ESCALATED_HUMAN</code></td>
             </tr>
             <tr>
               <td><code>PTP_ACTIVE</code></td>
               <td>Active (Paused)</td>
               <td>Debtor committed to pay by a specific date (≤ 3 days). Outreach paused until deadline.</td>
-              <td><code>RESOLVED</code>, <code>LINK_SENT</code>, <code>TIER_1_DISCOUNT</code>, <code>ESCALATED_HUMAN</code></td>
+              <td><code>RESOLVED</code>, <code>SPLIT_OFFERED</code>, <code>SPLIT_FIRST_HALF_PENDING</code>, <code>LINK_SENT</code>, <code>TIER_1_DISCOUNT</code>, <code>ESCALATED_HUMAN</code></td>
             </tr>
             <tr>
               <td><code>TIER_1_DISCOUNT</code></td>
               <td>Concession</td>
               <td>50% of merchant cap offered (e.g. 5% waiver). Awaiting settlement.</td>
-              <td><code>RESOLVED</code>, <code>TIER_2_DISCOUNT</code>, <code>PTP_ACTIVE</code>, <code>ESCALATED_HUMAN</code></td>
+              <td><code>RESOLVED</code>, <code>TIER_2_DISCOUNT</code>, <code>SPLIT_FIRST_HALF_PENDING</code>, <code>PTP_ACTIVE</code>, <code>ESCALATED_HUMAN</code></td>
             </tr>
             <tr>
               <td><code>TIER_2_DISCOUNT</code></td>
               <td>Concession</td>
               <td>80% of merchant cap offered (e.g. 8% waiver). Awaiting settlement.</td>
-              <td><code>RESOLVED</code>, <code>TIER_3_FLOOR</code>, <code>PTP_ACTIVE</code>, <code>ESCALATED_HUMAN</code></td>
+              <td><code>RESOLVED</code>, <code>TIER_3_FLOOR</code>, <code>SPLIT_FIRST_HALF_PENDING</code>, <code>PTP_ACTIVE</code>, <code>ESCALATED_HUMAN</code></td>
             </tr>
             <tr>
               <td><code>TIER_3_FLOOR</code></td>
               <td>Concession</td>
               <td>100% of merchant cap offered (e.g. 10% maximum waiver). Final automated offer.</td>
-              <td><code>RESOLVED</code>, <code>ESCALATED_HUMAN</code>, <code>PTP_ACTIVE</code></td>
+              <td><code>RESOLVED</code>, <code>ESCALATED_HUMAN</code>, <code>SPLIT_FIRST_HALF_PENDING</code>, <code>PTP_ACTIVE</code></td>
             </tr>
             <tr>
               <td><code>RESOLVED</code></td>
