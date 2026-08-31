@@ -196,6 +196,51 @@ class DebtorIntentResult(BaseModel):
     used_fallback: bool = False    # True when Gemini was unavailable
 
 
+# ── Structured Gemini Intent & Policy Schemas ─────────────────────────────────
+
+class DebtorIntentClassification(BaseModel):
+    """
+    Strict, non-authoritative natural language classification of debtor speech.
+    Contains NO chain-of-thought, reasoning, or calculation fields.
+    """
+    intent: Literal[
+        "PAY_NOW",
+        "PROMISE_TO_PAY",
+        "REQUEST_DISCOUNT",
+        "REFUSAL",
+        "DISPUTE",
+        "TECHNICAL_PROBLEM",
+        "REQUEST_PAYMENT_LINK",
+        "UNKNOWN",
+    ]
+    confidence: float = Field(ge=0.0, le=1.0)
+    customer_stated_discount_pct: Decimal | None = None
+    ptp_date_extracted: str | None = None
+    dispute_reason: str | None = None
+    sentiment: Literal["COOPERATIVE", "DISTRESSED", "EVASIVE", "HOSTILE"] = "COOPERATIVE"
+
+
+class AgentTurnDecision(BaseModel):
+    """
+    Authoritative server-side policy and financial outcome for a voice call turn.
+    Calculated exclusively by deterministic backend code (DiscountCalculator + FSM).
+    """
+    intent: str
+    confidence: float
+    customer_stated_discount_pct: Decimal | None = None
+    authorized_discount_rate: Decimal = Decimal("0.0")
+    authorized_net_amount: Decimal = Decimal("0.0")
+    previous_state: str
+    resulting_state: str
+    new_invoice_status: str
+    action_executed: str
+    trigger_auto_close: bool = False
+    ptp_date: datetime | None = None
+    dispute_reason: str | None = None
+    spoken_response_text: str = ""
+
+
+# ── Dunning message result ───────────────────────────────────────────────────
 class DunningMessageResult(BaseModel):
     """Generated dunning copy from Gemini."""
     subject: str          # SMS/WhatsApp subject / opening line

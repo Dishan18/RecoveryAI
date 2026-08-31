@@ -717,3 +717,279 @@ async def generate_dunning_copy(
             action_type=action_type,
             used_fallback=True,
         )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Structured Gemini 2.5 Flash Intent Classification (Pydantic Output)
+# ─────────────────────────────────────────────────────────────────────────────
+
+_STRUCTURED_INTENT_PROMPT = """\
+You are an intent classification engine for an Indian payment recovery conversational system.
+Analyze the debtor's speech and return a JSON object conforming strictly to this structure:
+- "intent": exactly one of ["PAY_NOW", "PROMISE_TO_PAY", "REQUEST_DISCOUNT", "REFUSAL", "DISPUTE", "TECHNICAL_PROBLEM", "REQUEST_PAYMENT_LINK", "UNKNOWN"]
+- "confidence": float between 0.0 and 1.0
+- "customer_stated_discount_pct": numeric percentage value (e.g. 25.0 for "25% discount") if the customer explicitly requested a discount percentage, else null. (Informational only)
+- "ptp_date_extracted": raw text timeframe or date if debtor promises future payment (e.g. "Friday", "Monday", "कल", "3 days"), else null.
+- "dispute_reason": summary of dispute if customer claims incorrect billing, GST, TDS, or quality issues, else null.
+- "sentiment": one of ["COOPERATIVE", "DISTRESSED", "EVASIVE", "HOSTILE"]
+
+Context:
+- Customer Name: {customer_name}
+- Invoice Amount: ₹{amount_inr}
+- Current State: {current_state}
+- Current Discount Tier: {current_tier}
+- Failure Reason: {failure_reason}
+
+Debtor Speech Transcript: "{transcript}"
+
+CRITICAL RULES:
+- If debtor asks for discount, concession, reduction, or specific percentage (e.g. "25% discount de do", "give me 50% off", "kuch discount milega?") -> "REQUEST_DISCOUNT"
+- If debtor states a future date or timeframe to pay (e.g. "I'll pay Friday", "Monday tak kar dunga", "kal dunga") -> "PROMISE_TO_PAY"
+- If debtor says payment gateway timed out, UPI failed, or technical transaction issue occurred -> "TECHNICAL_PROBLEM"
+- If debtor says invoice is wrong, GST/TDS mismatch, or dispute -> "DISPUTE"
+- If debtor rejects payment terms, says concession is too low, or refuses -> "REFUSAL"
+- If debtor asks for payment link/QR code -> "REQUEST_PAYMENT_LINK"
+- If debtor says they are paying right now -> "PAY_NOW"
+- Do NOT include any reasoning or chain-of-thought fields. Output pure JSON only.
+"""
+
+
+def _rule_based_fallback_classification(transcript: str) -> dict:
+    """Deterministic rule-based intent classifier used when Gemini is offline."""
+    raw = transcript.lower().strip()
+
+    # 1. Discount request
+    pct_match = re.search(r"(\d+(\.\d+)?)\s*(%|percent|pratishat|प्रतिशत)", raw)
+    has_discount_kw = any(w in raw for w in ["discount", "डिस्काउंट", "chhoot", "छूट", "kam karo", "concession", "off"])
+    if pct_match or has_discount_kw:
+        pct_val = float(pct_match.group(1)) if pct_match else None
+        return {
+            "intent": "REQUEST_DISCOUNT",
+            "confidence": 0.95 if pct_match else 0.85,
+            "customer_stated_discount_pct": pct_val,
+            "ptp_date_extracted": None,
+            "dispute_reason": None,
+            "sentiment": "COOPERATIVE",
+        }
+
+    # 2. Dispute
+    if any(w in raw for w in ["galat", "गलत", "wrong", "dispute", "gst", "जीएसटी", "tds", "billing error", "deliverable", "dhokha"]):
+        return {
+            "intent": "DISPUTE",
+            "confidence": 0.90,
+            "customer_stated_discount_pct": None,
+            "ptp_date_extracted": None,
+            "dispute_reason": f"Debtor stated discrepancy: {transcript[:100]}",
+            "sentiment": "EVASIVE",
+        }
+
+    # 3. Technical Problem (Gateway/UPI)
+    if any(w in raw for w in ["gateway", "upi", "यूपीआई", "failed", "fail", "timeout", "debit", "server", "bank issue"]):
+        return {
+            "intent": "TECHNICAL_PROBLEM",
+            "confidence": 0.92,
+            "customer_stated_discount_pct": None,
+            "ptp_date_extracted": None,
+            "dispute_reason": None,
+            "sentiment": "COOPERATIVE",
+        }
+
+    # 4. Promise to Pay
+    ptp_keywords = [
+        "friday", "monday", "tuesday", "wednesday", "thursday", "saturday", "sunday",
+        "मंडे", "सोमवार", "ट्यूजडे", "मंगलवार", "वेडनसडे", "बुधवार", "थर्सडे", "गुरुवार", "फ्राइडे", "शुक्रवार", "सैटरडे", "शनिवार", "संडे", "रविवार",
+        "kal", "कल", "parso", "parson", "परसों", "tomorrow",
+        "3 din", "teen din", "तीन दिन", "3 days", "2 din", "do din", "दो दिन", "2 days",
+        "5 din", "5 days", "next week", "agle hafte", "अगले हफ्ते", "week", "hafte"
+    ]
+    for kw in ptp_keywords:
+        if kw in raw:
+            return {
+                "intent": "PROMISE_TO_PAY",
+                "confidence": 0.90,
+                "customer_stated_discount_pct": None,
+                "ptp_date_extracted": kw,
+                "dispute_reason": None,
+                "sentiment": "COOPERATIVE",
+            }
+
+    # 5. Request payment link
+    if any(w in raw for w in ["link bhejo", "payment link", "send link", "qr code", "qr", "link"]):
+        return {
+            "intent": "REQUEST_PAYMENT_LINK",
+            "confidence": 0.90,
+            "customer_stated_discount_pct": None,
+            "ptp_date_extracted": None,
+            "dispute_reason": None,
+            "sentiment": "COOPERATIVE",
+        }
+
+    # 6. Pay Now
+    if any(w in raw for w in ["pay now", "abhi payment", "abhi kar deta", "payment kar raha", "turant pay", "clearing now"]):
+        return {
+            "intent": "PAY_NOW",
+            "confidence": 0.90,
+            "customer_stated_discount_pct": None,
+            "ptp_date_extracted": None,
+            "dispute_reason": None,
+            "sentiment": "COOPERATIVE",
+        }
+
+    # 7. Refusal
+    if any(w in raw for w in ["nahi karunga", "nahi dunga", "नहीं", "refuse", "too low", "too high", "not possible", "nahi hoga", "no", "never"]):
+        return {
+            "intent": "REFUSAL",
+            "confidence": 0.88,
+            "customer_stated_discount_pct": None,
+            "ptp_date_extracted": None,
+            "dispute_reason": None,
+            "sentiment": "EVASIVE",
+        }
+
+    # Default fallback
+    return {
+        "intent": "UNKNOWN",
+        "confidence": 0.50,
+        "customer_stated_discount_pct": None,
+        "ptp_date_extracted": None,
+        "dispute_reason": None,
+        "sentiment": "COOPERATIVE",
+    }
+
+
+async def classify_debtor_intent(
+    transcript: str,
+    invoice_context: dict | None = None,
+) -> DebtorIntentClassification:
+    """
+    Classify debtor speech using Gemini 2.5 Flash with structured Pydantic schema output.
+    Falls back to deterministic rule-based parsing on timeout/error.
+    """
+    from decimal import Decimal
+    from app.schemas import DebtorIntentClassification  # noqa: PLC0415
+
+    ctx = invoice_context or {}
+    vars_dict = {
+        "customer_name": ctx.get("customer_name", "Valued Customer"),
+        "amount_inr": f"{float(ctx.get('amount_inr', 0)):,.2f}",
+        "current_state": ctx.get("current_state", "TRIGGERED"),
+        "current_tier": str(ctx.get("current_tier", 0)),
+        "failure_reason": ctx.get("failure_reason", "Payment due"),
+        "transcript": transcript,
+    }
+
+    prompt = _STRUCTURED_INTENT_PROMPT.format(**vars_dict)
+    raw = await _call_gemini_async(prompt, timeout=1.8)
+    parsed = _extract_json(raw) if raw else None
+
+    valid_intents = {
+        "PAY_NOW", "PROMISE_TO_PAY", "REQUEST_DISCOUNT", "REFUSAL",
+        "DISPUTE", "TECHNICAL_PROBLEM", "REQUEST_PAYMENT_LINK", "UNKNOWN"
+    }
+
+    if parsed and parsed.get("intent") in valid_intents:
+        try:
+            stated_discount = None
+            if parsed.get("customer_stated_discount_pct") is not None:
+                stated_discount = Decimal(str(parsed["customer_stated_discount_pct"]))
+
+            return DebtorIntentClassification(
+                intent=parsed["intent"],
+                confidence=float(parsed.get("confidence", 0.90)),
+                customer_stated_discount_pct=stated_discount,
+                ptp_date_extracted=parsed.get("ptp_date_extracted"),
+                dispute_reason=parsed.get("dispute_reason"),
+                sentiment=parsed.get("sentiment", "COOPERATIVE"),
+            )
+        except Exception as exc:
+            logger.debug("Failed parsing Gemini structured intent object: %s", exc)
+
+    # Use deterministic fallback
+    fb = _rule_based_fallback_classification(transcript)
+    stated_discount_fb = None
+    if fb.get("customer_stated_discount_pct") is not None:
+        stated_discount_fb = Decimal(str(fb["customer_stated_discount_pct"]))
+
+    return DebtorIntentClassification(
+        intent=fb["intent"],
+        confidence=fb["confidence"],
+        customer_stated_discount_pct=stated_discount_fb,
+        ptp_date_extracted=fb["ptp_date_extracted"],
+        dispute_reason=fb["dispute_reason"],
+        sentiment=fb.get("sentiment", "COOPERATIVE"),
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Grounded Conversational Speech Generation
+# ─────────────────────────────────────────────────────────────────────────────
+
+async def generate_grounded_speech(
+    invoice_context: dict,
+    turn_decision: AgentTurnDecision,
+) -> str:
+    """
+    Generate natural Hinglish conversational speech strictly grounded in
+    authoritative numbers provided by the deterministic Policy Engine.
+    """
+    state = turn_decision.resulting_state
+
+    # 1. Terminal Escalation Invariant
+    if state == "ESCALATED_HUMAN":
+        return (
+            "Since you have declined the available payment options, I will forward "
+            "this case to a senior financial officer for formal review. Thank you for your time."
+        )
+
+    # 2. Frozen Dispute Invariant
+    if state == "FROZEN_DISPUTE":
+        reason = turn_decision.dispute_reason or "invoice discrepancy"
+        return (
+            f"Maine aapka dispute record kar liya hai regarding {reason}. Humari billing "
+            "team iski jaanch karegi aur collection call abhi ke liye rok di gayi hai."
+        )
+
+    # 3. Promise to Pay Invariant
+    if state == "PTP_ACTIVE":
+        ptp_str = turn_decision.ptp_date.strftime("%d %B %Y") if turn_decision.ptp_date else "the agreed date"
+        return (
+            f"Dhanyawad! Maine {ptp_str} tak aapka payment commitment record kar liya hai. "
+            "Payment link aapke mobile par bhej diya gaya hai."
+        )
+
+    # 4. Concession Tiers
+    if state in ("TIER_1_DISCOUNT", "TIER_2_DISCOUNT", "TIER_3_FLOOR"):
+        pct_str = f"{turn_decision.authorized_discount_rate * 100:.0f}%"
+        net_str = f"₹{turn_decision.authorized_net_amount:,.0f}"
+        if state == "TIER_3_FLOOR":
+            return (
+                f"Humari policy ke mutabik yeh humara final discount offer hai: {pct_str} concession, "
+                f"jisse aapko sirf {net_str} pay karna hoga. Iske baad koi aur discount sambhav nahi hoga."
+            )
+        return (
+            f"Hum aapko {pct_str} ka authorized discount offer kar sakte hain, jisse aapki final "
+            f"payable amount {net_str} ho jayegi. Kya main payment link bhej doon?"
+        )
+
+    # 5. Technical Gateway Issue
+    if turn_decision.intent == "TECHNICAL_PROBLEM":
+        return (
+            "Payment gateway issue ke liye kshama chahte hain. Maine direct UPI aur alternate "
+            "payment rails ka fresh link aapke phone par bhej diya hai."
+        )
+
+    # 6. Payment Link Request / Immediate Pay
+    if turn_decision.intent in ("REQUEST_PAYMENT_LINK", "PAY_NOW") or state == "LINK_SENT":
+        net_str = f"₹{turn_decision.authorized_net_amount:,.0f}"
+        return (
+            f"Maine payment link SMS aur WhatsApp par bhej diya hai. Kripya {net_str} ki payment "
+            "link ke zariye turant complete karein."
+        )
+
+    # 7. Safe Default
+    net_str = f"₹{turn_decision.authorized_net_amount:,.0f}"
+    return (
+        f"Aapki total gross outstanding amount {net_str} hai. Kripya batayein ki aap payment "
+        "abhi complete karna chahenge ya koi query hai?"
+    )
+

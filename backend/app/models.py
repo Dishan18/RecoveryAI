@@ -146,6 +146,23 @@ class Invoice(Base):
         order_by="RecoveryEvent.timestamp",
     )
 
+    @property
+    def current_state(self) -> str:
+        if self.recovery_events:
+            return self.recovery_events[-1].current_state
+        return "TRIGGERED"
+
+    @property
+    def current_discount_tier(self) -> int:
+        st = self.current_state
+        if st == "TIER_1_DISCOUNT":
+            return 1
+        elif st == "TIER_2_DISCOUNT":
+            return 2
+        elif st == "TIER_3_FLOOR":
+            return 3
+        return 0
+
     def __repr__(self) -> str:
         return (
             f"<Invoice id={self.id} amount_inr={self.amount_inr}"

@@ -29,7 +29,13 @@ from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.engine.calculator import DiscountCalculator, calculator
-from app.engine.gemini_service import generate_dunning_copy, parse_debtor_message
+from app.engine.gemini_service import (
+    classify_debtor_intent,
+    generate_dunning_copy,
+    generate_grounded_speech,
+    parse_debtor_message,
+)
+from app.engine.policy_wrapper import execute_policy_turn
 from app.engine.sarvam_service import synthesize_speech, transcribe_audio
 from app.engine.state_machine import (
     InvalidTransitionError,
@@ -660,7 +666,13 @@ async def generate_message_endpoint(
 @router.post(
     "/invoices/{invoice_id}/voice/transcribe-and-reply",
     response_model=VoiceCallResponse,
-    summary="In-browser Hinglish Voice Recovery Call via Sarvam AI v3 STT/TTS & Gemini Intent Engine",
+    summary="In-browser Hinglish Voice Recovery Call via Sarvam AI STT/TTS & Gemini Intent Engine",
+)
+@router.post(
+    "/invoices/{invoice_id}/voice/turn",
+    response_model=VoiceCallResponse,
+    summary="Alias for voice call turn pipeline",
+    include_in_schema=False,
 )
 async def voice_transcribe_and_reply(
     invoice_id: uuid.UUID = Path(...),
@@ -669,17 +681,16 @@ async def voice_transcribe_and_reply(
     db: AsyncSession = Depends(get_db),
 ) -> Any:
     """
-    Handles in-browser Hinglish voice call interaction:
-    1. Transcribes incoming debtor audio via Sarvam AI `saaras-v3` STT (or uses text_fallback).
-    2. Parses intent & extracts PTP timestamp via Gemini 3.6 Flash.
-    3. Advances State Machine (PTP_ACTIVE, FROZEN_DISPUTE, LINK_SENT, etc.).
-    4. Generates empathetic Hinglish dunning reply copy.
-    5. Synthesizes voice audio response via Sarvam AI `bulbul-v3` TTS into base64 WAV.
-    6. Appends log event to PostgreSQL.
+    Structured Voice Call Turn Execution:
+    1. Transcribes incoming debtor audio via Sarvam AI saaras-v3 STT (or uses text_fallback).
+    2. Classifies debtor intent via Gemini 2.5 Flash structured Pydantic schema (no chain-of-thought).
+    3. Deterministic Policy Wrapper evaluates financial caps, concession ladder & FSM transitions.
+    4. Generates natural conversational Hinglish reply strictly grounded in authoritative numbers.
+    5. Synthesizes voice audio response via Sarvam AI bulbul-v3 TTS into base64 WAV.
+    6. Appends immutable audit event to PostgreSQL.
     """
     inv = await _get_invoice_or_404(invoice_id, db)
-    sm = StateMachine(inv, db)
-    prev = sm.current_state
+    prev_state = inv.current_state or State.TRIGGERED
 
     # 1. Speech-to-Text (STT) via Sarvam saaras-v3
     transcript = ""
@@ -692,7 +703,7 @@ async def voice_transcribe_and_reply(
                 filename=audio_file.filename,
                 content_type=audio_file.content_type or "audio/webm",
             )
-            transcript = stt_res["transcript"]
+            transcript = stt_res.get("transcript", "")
             used_stt_fallback = stt_res.get("used_fallback", False)
 
     if not transcript:
@@ -702,359 +713,36 @@ async def voice_transcribe_and_reply(
             transcript = "Bhai Monday tak pakka payment clear kar dunga, tension mat lo."
             used_stt_fallback = True
 
-    # 2. Gemini Intent Parsing & Date Extraction
-    intent_res = await parse_debtor_message(transcript)
+    # 2. Structured Gemini 2.5 Flash Intent Classification
+    invoice_ctx = {
+        "customer_name": inv.customer.name,
+        "amount_inr": float(inv.amount_inr),
+        "current_state": inv.current_state,
+        "current_tier": inv.current_discount_tier,
+        "failure_reason": inv.failure_reason,
+    }
+    intent_data = await classify_debtor_intent(transcript, invoice_ctx)
 
-    # 3. Determine target FSM state & transition parameters
-    target_state: str | None = None
-    discount_offered: float = 0.0
-    ptp_deadline: datetime | None = None
-    notes = ""
-    action_type_for_copy = "SOFT_REMINDER"
-    trigger_auto_close = False
-
-    current_fsm_state = sm.current_state
-    cap = Decimal(str(inv.merchant.default_discount_cap))
-    months = inv.customer.consecutive_discount_months
-    gross = Decimal(str(inv.amount_inr))
-
-    custom_reply_text: str | None = None
-    action_executed = "No state transition triggered"
-
-    last_evt = inv.recovery_events[-1] if inv.recovery_events else None
-    was_counter_offering_3day = bool(last_evt and "maximum 3 din" in (last_evt.log_message or ""))
-
-    has_prior_ptp_breached = any(
-        "PTP commitment deadline breached" in (e.log_message or "")
-        or "PTP Breach" in (e.log_message or "")
-        or "pichla payment promise breach" in (e.log_message or "")
-        or (e.current_state == State.PTP_ACTIVE and e.ptp_deadline and e.ptp_deadline < e.timestamp)
-        for e in inv.recovery_events
+    # 3. Deterministic Policy Wrapper Execution (Authoritative Financial Boundary)
+    turn_decision = await execute_policy_turn(
+        invoice=inv,
+        intent_data=intent_data,
+        db=db,
     )
-
-    has_prior_1hour_agreement = any(
-        "1-hour" in (e.log_message or "")
-        or "1 ghante" in (e.log_message or "")
-        or "1-hour settlement window" in (e.log_message or "")
-        for e in inv.recovery_events
-    )
-
-    if has_prior_ptp_breached:
-        # Debtor already breached their one-time PTP commitment. No further delays or discounts permitted.
-        if intent_res.intent == "AGREED_TO_PAY":
-            target_state = current_fsm_state
-            trigger_auto_close = True
-            action_type_for_copy = "LINK_DISPATCH"
-            action_executed = "Debtor agreed to clear breached PTP immediately. Payment link dispatched."
-            notes = "Agreed to settle breached commitment -> dispatched payment link"
-            custom_reply_text = (
-                "Dhanyawad! Maine payment link SMS aur WhatsApp par bhej diya hai. "
-                "Kripya turant payment complete karein."
-            )
-        else:
-            # Any further PTP request, refusal, or negotiation escalates immediately
-            target_state = State.ESCALATED_HUMAN
-            trigger_auto_close = True
-            notes = "Debtor failed to complete payment after breached PTP commitment -> escalated to human"
-            action_executed = "Breached PTP commitment not paid -> Escalated to senior financial officer"
-            custom_reply_text = (
-                "Since your previous payment commitment was not met and payment cannot be cleared now, "
-                "I am forwarding this case to a senior financial officer."
-            )
-
-    elif has_prior_1hour_agreement and current_fsm_state in (State.LINK_SENT, State.TIER_1_DISCOUNT, State.TIER_2_DISCOUNT, State.TIER_3_FLOOR):
-        # Debtor previously agreed to pay within 1 hour, but window expired without payment
-        if intent_res.intent == "AGREED_TO_PAY":
-            target_state = current_fsm_state
-            trigger_auto_close = True
-            action_type_for_copy = "LINK_DISPATCH"
-            action_executed = "Debtor agreed to pay. Payment link re-dispatched."
-            notes = "Agreed to complete payment -> re-dispatched payment link"
-            custom_reply_text = (
-                "Dhanyawad! Maine payment link SMS aur WhatsApp par dobara bhej diya hai. "
-                "Kripya abhi payment complete karein."
-            )
-        else:
-            # Debtor declined or failed to pay on follow-up -> escalate directly
-            target_state = State.ESCALATED_HUMAN
-            trigger_auto_close = True
-            notes = "Debtor breached 1-hour payment agreement -> escalated to human"
-            action_executed = "1-hour payment window breached -> Escalated to senior financial officer"
-            custom_reply_text = (
-                "Since the agreed payment was not received within the window and cannot be completed now, "
-                "I am escalating your file to a senior financial officer."
-            )
-
-    elif was_counter_offering_3day:
-        # Debtor is replying to the 3-day maximum policy counter-offer
-        lower_trans = transcript.lower()
-        is_rejection = any(w in lower_trans for w in ["nahi", "नहीं", "no", "nahi ho payega", "not possible", "nahi hoga"])
-        if not is_rejection and (intent_res.intent in ("AGREED_TO_PAY", "PROMISE_TO_PAY") or any(w in lower_trans for w in ["haan", "हाँ", "theek", "ठीक", "3 din", "kar dunga", "okay", "chalega", "thik"])):
-            target_state = State.PTP_ACTIVE
-            ptp_deadline = datetime.now(timezone.utc) + timedelta(days=3)
-            formatted_date = ptp_deadline.strftime("%d %b %Y")
-            notes = f"Accepted 3-day policy -> PTP active until {formatted_date}"
-            action_type_for_copy = "PTP_CONFIRMATION"
-            action_executed = f"Accepted 3-day policy -> Transitioned to PTP_ACTIVE (Hold until {formatted_date})"
-            trigger_auto_close = True
-            custom_reply_text = (
-                f"Dhanyawad! Humne aapka 3 din ka payment commitment record kar liya hai. "
-                f"Deadline: {formatted_date}. Kripya tab tak payment complete karein."
-            )
-        else:
-            target_state = State.ESCALATED_HUMAN
-            trigger_auto_close = True
-            notes = "Refused 3-day policy counter-offer -> escalated to human officer"
-            action_executed = "Refused 3-day policy offer -> Escalated to senior financial officer"
-            custom_reply_text = (
-                "Hum samajh sakte hain. Main aapka case review ke liye senior officer ko forward kar raha hoon."
-            )
-
-    elif intent_res.intent == "PTP_EXCEEDS_POLICY":
-        target_state = None
-        trigger_auto_close = False
-        notes = "Debtor requested >3 days. Agent counter-offered maximum 3 din policy."
-        action_executed = "PTP exceeds policy (>3 days) -> Counter-offered 3-day maximum"
-        custom_reply_text = (
-            "Policy ke anusaar maximum 3 din ka time diya ja sakta hai. "
-            "Kya aap 3 din ke andar payment clear kar sakte hain?"
-        )
-
-    elif intent_res.intent == "PROMISE_TO_PAY":
-        now_utc = datetime.now(timezone.utc)
-        ptp_deadline = intent_res.ptp_deadline or (now_utc + timedelta(days=1))
-        days_diff = (ptp_deadline - now_utc).total_seconds() / 86400.0
-        days_num = max(1, round(days_diff))
-
-        if days_num > 3:
-            target_state = None
-            trigger_auto_close = False
-            notes = "Debtor requested >3 days. Agent counter-offered maximum 3 din policy."
-            action_executed = "PTP exceeds policy (>3 days) -> Counter-offered 3-day maximum"
-            custom_reply_text = (
-                "Policy ke anusaar maximum 3 din ka time diya ja sakta hai. "
-                "Kya aap 3 din ke andar payment clear kar sakte hain?"
-            )
-        else:
-            target_state = State.PTP_ACTIVE
-            formatted_date = ptp_deadline.strftime("%d %b %Y")
-            notes = f"Voice PTP commitment parsed: {ptp_deadline.isoformat()} ({days_num} days)"
-            action_type_for_copy = "PTP_CONFIRMATION"
-            action_executed = f"Transitioned to PTP_ACTIVE (Hold until {formatted_date})"
-            trigger_auto_close = True
-            custom_reply_text = (
-                f"Dhanyawad! Humne aapka {days_num} din ka payment commitment record kar liya hai. "
-                f"Deadline: {formatted_date}. Kripya tab tak payment complete karein."
-            )
-
-    elif intent_res.intent == "AGREED_TO_PAY":
-        # Debtor accepts concession or agrees to pay immediately without a future date
-        if current_fsm_state in (State.TRIGGERED, State.DIAGNOSED, State.REMINDER_SENT):
-            target_state = State.LINK_SENT
-        else:
-            target_state = current_fsm_state
-        last_evt = inv.recovery_events[-1] if inv.recovery_events else None
-        discount_offered = float(last_evt.discount_offered) if last_evt else 0.0
-        trigger_auto_close = True
-        action_type_for_copy = "LINK_DISPATCH"
-        action_executed = f"Debtor agreed to pay. Payment link dispatched (1-hour settlement window active)."
-        notes = "Agreed to settle -> dispatched payment link with 1-hour follow-up window"
-        custom_reply_text = (
-            "Dhanyawad! Maine payment link SMS aur WhatsApp par bhej diya hai. "
-            "Kripya 1 ghante ke andar payment complete karein."
-        )
-
-    elif intent_res.intent in ("REQUEST_NEGOTIATION", "REQUEST_DISCOUNT", "INSUFFICIENT_FUNDS_SIGNAL"):
-        if current_fsm_state in (State.TRIGGERED, State.DIAGNOSED, State.REMINDER_SENT, State.LINK_SENT, State.PTP_ACTIVE):
-            res = calculator.calculate(cap, months, 1, gross)
-            if res.is_accessible and sm.can_transition(State.TIER_1_DISCOUNT):
-                target_state = State.TIER_1_DISCOUNT
-                discount_offered = float(res.discount_rate)
-                net_amt = float(res.net_payable_inr)
-                notes = f"Voice negotiation -> applied Tier 1 ({res.discount_pct} waiver)"
-                action_executed = f"Transitioned to TIER_1_DISCOUNT ({res.discount_pct} waiver applied)"
-                action_type_for_copy = "DISCOUNT_OFFER"
-                custom_reply_text = (
-                    f"Would you be able to complete the payment today with a {res.discount_pct} settlement discount? "
-                    f"Your net payable amount would be ₹{net_amt:,.0f}."
-                )
-            else:
-                target_state = State.ESCALATED_HUMAN
-                trigger_auto_close = True
-                notes = "Discount policy limit reached (0% cap)"
-                action_executed = "Transitioned to ESCALATED_HUMAN (No discount eligible)"
-                custom_reply_text = (
-                    "Since you have declined the available payment options, "
-                    "I am forwarding your case to a senior financial officer for further review."
-                )
-        elif current_fsm_state == State.TIER_1_DISCOUNT:
-            res = calculator.calculate(cap, months, 2, gross)
-            if res.is_accessible and sm.can_transition(State.TIER_2_DISCOUNT):
-                target_state = State.TIER_2_DISCOUNT
-                discount_offered = float(res.discount_rate)
-                net_amt = float(res.net_payable_inr)
-                notes = f"Voice negotiation -> climbed to Tier 2 ({res.discount_pct} waiver)"
-                action_executed = f"Climbed to TIER_2_DISCOUNT ({res.discount_pct} waiver applied)"
-                action_type_for_copy = "DISCOUNT_OFFER"
-                custom_reply_text = (
-                    f"Hum samajh sakte hain. Hum ise badhakar {res.discount_pct} discount kar sakte hain, "
-                    f"jisse net payable ₹{net_amt:,.0f} hoga. Kya aap ise clear karenge?"
-                )
-            else:
-                target_state = State.ESCALATED_HUMAN
-                trigger_auto_close = True
-                action_executed = "Policy ceiling reached -> Escalated to senior financial officer"
-                custom_reply_text = (
-                    "Since you have declined the available payment options, "
-                    "I am forwarding your case to a senior financial officer for further review."
-                )
-        elif current_fsm_state == State.TIER_2_DISCOUNT:
-            res = calculator.calculate(cap, months, 3, gross)
-            if res.is_accessible and sm.can_transition(State.TIER_3_FLOOR):
-                target_state = State.TIER_3_FLOOR
-                discount_offered = float(res.discount_rate)
-                net_amt = float(res.net_payable_inr)
-                notes = f"Voice negotiation -> climbed to Tier 3 Floor ({res.discount_pct} waiver)"
-                action_executed = f"Climbed to TIER_3_FLOOR ({res.discount_pct} max ceiling applied)"
-                action_type_for_copy = "DISCOUNT_OFFER"
-                custom_reply_text = (
-                    f"Ye hamara absolute final {res.discount_pct} maximum waiver hai "
-                    f"(Net: ₹{net_amt:,.0f}). Kya aap ise finalize karenge?"
-                )
-            else:
-                target_state = State.ESCALATED_HUMAN
-                trigger_auto_close = True
-                action_executed = "Refused final floor concession -> Escalated to senior financial officer"
-                custom_reply_text = (
-                    "Since you have declined the available payment options, "
-                    "I am forwarding your case to a senior financial officer for further review."
-                )
-
-        elif current_fsm_state == State.TIER_3_FLOOR:
-            target_state = State.ESCALATED_HUMAN
-            trigger_auto_close = True
-            notes = "Refused Tier 3 floor -> escalated to human officer"
-            action_executed = "Transitioned to ESCALATED_HUMAN (Refused final floor offer)"
-            custom_reply_text = (
-                "Since you have declined the available payment options, "
-                "I am forwarding your case to a senior financial officer for further review."
-            )
-
-    elif intent_res.intent == "HARD_REFUSAL":
-        target_state = State.ESCALATED_HUMAN
-        trigger_auto_close = True
-        notes = f"Voice hard refusal while in {current_fsm_state} -> escalated to human agent"
-        action_type_for_copy = "SOFT_REMINDER"
-        action_executed = "Transitioned to ESCALATED_HUMAN (Escalated to senior finance officer)"
-        custom_reply_text = (
-            "Since you have declined the available payment options, "
-            "I am forwarding your case to a senior financial officer for further review."
-        )
-
-    elif intent_res.intent == "DISPUTE":
-        target_state = State.FROZEN_DISPUTE
-        trigger_auto_close = True
-        reason = intent_res.dispute_reason or transcript
-        notes = f"Voice dispute registered: {reason}"
-        action_type_for_copy = "DISPUTE_ACK"
-        action_executed = f"Transitioned to FROZEN_DISPUTE (Reason: {reason})"
-        custom_reply_text = "I have logged your billing dispute regarding the invoice amount. Automated recovery outreach is paused and routed to our finance team for review."
-
-    elif intent_res.intent == "REQUEST_ALTERNATE_LINK":
-        target_state = State.LINK_SENT
-        notes = "Voice request for alternate UPI link"
-        action_type_for_copy = "ALTERNATE_LINK"
-        action_executed = "Transitioned to LINK_SENT (UPI link generated)"
-        custom_reply_text = "A fresh Razorpay UPI payment link has been dispatched to your registered WhatsApp and SMS."
-
-    # 4. Attempt State Transition
-    event_id: uuid.UUID | None = None
-    audit_log = (
-        f"[VOICE CALL] Debtor Transcript: \"{transcript}\"\n"
-        f"Intent: {intent_res.intent} (Confidence: {intent_res.confidence:.2f})\n"
-        f"Reasoning: {intent_res.explanation}"
-    )
-    if notes:
-        audit_log += f"\nNote: {notes}"
-
-    if target_state and prev != target_state and not sm.current_state in State.TERMINAL_STATES:
-        try:
-            event = await sm.transition(
-                target_state=target_state,
-                discount_offered=discount_offered,
-                ptp_deadline=ptp_deadline,
-                log_message=audit_log,
-            )
-            event_id = event.id
-        except (InvalidTransitionError, TerminalStateError) as exc:
-            logger.warning("FSM transition skipped during voice call: %s", exc)
-            action_executed += " (Transition skipped: already active)"
-    elif intent_res.intent == "AGREED_TO_PAY":
-        # Log agreed to pay event while staying at current state
-        from app.models import RecoveryEvent
-        import uuid as _uuid
-        evt = RecoveryEvent(
-            id=_uuid.uuid4(),
-            invoice_id=inv.id,
-            current_state=sm.current_state,
-            discount_offered=discount_offered,
-            log_message=f"[VOICE CALL] Debtor agreed to pay. Payment link sent with 1-hour follow-up deadline.\nTranscript: \"{transcript}\"",
-            timestamp=datetime.now(timezone.utc),
-        )
-        db.add(evt)
-        inv.recovery_events.append(evt)
-        event_id = evt.id
-    elif intent_res.intent == "PTP_EXCEEDS_POLICY" or (intent_res.intent == "PROMISE_TO_PAY" and target_state is None):
-        from app.models import RecoveryEvent
-        import uuid as _uuid
-        evt = RecoveryEvent(
-            id=_uuid.uuid4(),
-            invoice_id=inv.id,
-            current_state=sm.current_state,
-            discount_offered=discount_offered,
-            log_message=f"[VOICE CALL] Debtor requested >3 days (Transcript: \"{transcript}\"). Agent counter-offered maximum 3 din policy.",
-            timestamp=datetime.now(timezone.utc),
-        )
-        db.add(evt)
-        inv.recovery_events.append(evt)
-        event_id = evt.id
 
     # Clear call_pending flag since call has now taken place
     inv.call_pending = False
-    new_st = sm.current_state
-    if new_st in State.TERMINAL_STATES:
+    if turn_decision.resulting_state in State.TERMINAL_STATES:
         inv.next_action_due_at = None
-        trigger_auto_close = True
-    elif new_st == State.PTP_ACTIVE:
-        inv.next_action_due_at = ptp_deadline
-    elif intent_res.intent == "AGREED_TO_PAY":
-        inv.next_action_due_at = datetime.now(timezone.utc) + timedelta(hours=1)
+    elif turn_decision.resulting_state == State.PTP_ACTIVE and turn_decision.ptp_date:
+        inv.next_action_due_at = turn_decision.ptp_date
     else:
         inv.next_action_due_at = datetime.now(timezone.utc) + timedelta(minutes=10)
 
-    # 5. Generate Empathetic Response Copy
-    if custom_reply_text:
-        reply_text = custom_reply_text
-    else:
-        inv_data = {
-            "amount_inr": float(inv.amount_inr),
-            "merchant_cap": float(inv.merchant.default_discount_cap),
-            "failure_reason": inv.failure_reason,
-            "merchant_name": inv.merchant.name,
-        }
-        cust_data = {
-            "name": inv.customer.name,
-            "consecutive_discount_months": inv.customer.consecutive_discount_months,
-        }
-        agent_reply = await generate_dunning_copy(
-            invoice_data=inv_data,
-            customer_data=cust_data,
-            action_type=action_type_for_copy,
-            tier=1 if discount_offered > 0 else None,
-        )
-        reply_text = agent_reply.body
+    # 4. Generate Empathetic Grounded Response Speech
+    reply_text = await generate_grounded_speech(invoice_ctx, turn_decision)
 
-    # 6. Text-to-Speech (TTS) via Sarvam bulbul-v3
+    # 5. Text-to-Speech (TTS) via Sarvam bulbul-v3
     tts_res = await synthesize_speech(
         text=reply_text,
         target_language_code="hi-IN",
@@ -1066,20 +754,20 @@ async def voice_transcribe_and_reply(
     return VoiceCallResponse(
         invoice_id=inv.id,
         transcription=transcript,
-        parsed_intent=intent_res.intent,
-        ptp_deadline=ptp_deadline,
-        dispute_reason=intent_res.dispute_reason,
+        parsed_intent=turn_decision.intent,
+        ptp_deadline=turn_decision.ptp_date,
+        dispute_reason=turn_decision.dispute_reason,
         agent_reply_text=reply_text,
         audio_base64=tts_res.get("audio_base64", ""),
         audio_format=tts_res.get("audio_format", "audio/wav"),
-        previous_state=prev,
-        new_state=sm.current_state,
+        previous_state=prev_state,
+        new_state=turn_decision.resulting_state,
         new_invoice_status=inv.status,
         used_stt_fallback=used_stt_fallback,
         used_tts_fallback=tts_res.get("used_fallback", False),
-        applied_discount=discount_offered,
-        action_executed=action_executed,
-        trigger_auto_close=trigger_auto_close,
+        applied_discount=float(turn_decision.authorized_discount_rate),
+        action_executed=turn_decision.action_executed,
+        trigger_auto_close=turn_decision.trigger_auto_close,
     )
 
 
