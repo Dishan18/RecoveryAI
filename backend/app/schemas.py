@@ -220,6 +220,8 @@ class DebtorIntentClassification(BaseModel):
     ptp_date_extracted: str | None = None
     dispute_reason: str | None = None
     sentiment: Literal["COOPERATIVE", "DISTRESSED", "EVASIVE", "HOSTILE"] = "COOPERATIVE"
+    raw_transcript: str | None = None
+    is_split_requested: bool = False
 
 
 class AgentTurnDecision(BaseModel):

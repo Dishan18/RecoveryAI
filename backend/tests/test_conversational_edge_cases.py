@@ -566,6 +566,81 @@ class TestSplitPaymentFlow:
         assert "split payment plan" in speech.lower()
         assert "50%" in speech
 
+    def test_split_on_discount_clarification_and_ladder(self):
+        import asyncio
+        import uuid
+        from datetime import datetime, timezone
+        from decimal import Decimal
+        from app.models import Merchant, Customer, Invoice, RecoveryEvent
+        from app.engine.state_machine import State
+        from app.engine.policy_wrapper import execute_policy_turn
+        from app.engine.gemini_service import generate_grounded_speech
+        from app.schemas import DebtorIntentClassification
+
+        class MockSession:
+            def add(self, obj): pass
+            async def flush(self): pass
+
+        m = Merchant(id=uuid.uuid4(), name="M", default_discount_cap=Decimal("0.10"), created_at=datetime.now(timezone.utc))
+        c = Customer(id=uuid.uuid4(), merchant_id=m.id, name="Test Cust", phone="+919876543210", ltv_inr=Decimal("100000"), consecutive_discount_months=0)
+        inv = Invoice(id=uuid.uuid4(), customer_id=c.id, merchant_id=m.id, amount_inr=Decimal("95000.00"), status="UNPAID", created_at=datetime.now(timezone.utc))
+        inv.merchant = m
+        inv.customer = c
+        inv.recovery_events = [
+            RecoveryEvent(id=uuid.uuid4(), invoice_id=inv.id, current_state=State.TIER_1_DISCOUNT, discount_offered=0.05, timestamp=datetime.now(timezone.utc))
+        ]
+
+        # 1. First time asking for split on discount at Tier 1 -> Clarification (No tier progression yet)
+        intent1 = DebtorIntentClassification(
+            intent="REQUEST_DISCOUNT",
+            confidence=0.95,
+            sentiment="COOPERATIVE",
+            raw_transcript="Main 5% discount me split payment karna chahunga",
+            is_split_requested=True,
+        )
+        dec1 = asyncio.run(execute_policy_turn(inv, intent1, MockSession()))
+        assert dec1.resulting_state == State.TIER_1_DISCOUNT
+        assert "Discounted payment is not available for split payments" in dec1.action_executed
+
+        ctx = {"customer_name": "Aarav", "merchant_name": "DemoMerchant", "amount_inr": 95000.0}
+        speech1 = asyncio.run(generate_grounded_speech(ctx, dec1))
+        assert "discounted payment split mein available nahi hai" in speech1.lower()
+
+        # Simulate event added
+        inv.recovery_events.append(
+            RecoveryEvent(id=uuid.uuid4(), invoice_id=inv.id, current_state=State.TIER_1_DISCOUNT, discount_offered=0.05, log_message=dec1.action_executed, timestamp=datetime.now(timezone.utc))
+        )
+
+        # 2. Debtor insists again on split discount -> Progress to Tier 2 (one-time discount only)
+        dec2 = asyncio.run(execute_policy_turn(inv, intent1, MockSession()))
+        assert dec2.resulting_state == State.TIER_2_DISCOUNT
+        assert "insisted on split discount" in dec2.action_executed.lower()
+        speech2 = asyncio.run(generate_grounded_speech(ctx, dec2))
+        assert "split payment par discount allow nahi hai" in speech2.lower()
+
+        inv.recovery_events.append(
+            RecoveryEvent(id=uuid.uuid4(), invoice_id=inv.id, current_state=State.TIER_2_DISCOUNT, discount_offered=0.08, log_message="Offered Tier 2 one-time concession", timestamp=datetime.now(timezone.utc))
+        )
+        inv.recovery_events.append(
+            RecoveryEvent(id=uuid.uuid4(), invoice_id=inv.id, current_state=State.TIER_2_DISCOUNT, discount_offered=0.08, log_message="Discounted payment is not available for split payments", timestamp=datetime.now(timezone.utc))
+        )
+
+        # 3. Debtor insists at Tier 2 -> Progress to Tier 3 Final Floor
+        dec3 = asyncio.run(execute_policy_turn(inv, intent1, MockSession()))
+        assert dec3.resulting_state == State.TIER_3_FLOOR
+        speech3 = asyncio.run(generate_grounded_speech(ctx, dec3))
+        assert "final one-time offer" in speech3.lower()
+
+        inv.recovery_events.append(
+            RecoveryEvent(id=uuid.uuid4(), invoice_id=inv.id, current_state=State.TIER_3_FLOOR, discount_offered=0.10, log_message="Discounted payment is not available for split payments", timestamp=datetime.now(timezone.utc))
+        )
+
+        # 4. Debtor keeps insisting on split discount after final floor -> Escalate to human!
+        dec4 = asyncio.run(execute_policy_turn(inv, intent1, MockSession()))
+        assert dec4.resulting_state == State.ESCALATED_HUMAN
+        speech4 = asyncio.run(generate_grounded_speech(ctx, dec4))
+        assert "senior financial officer" in speech4.lower()
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "--tb=short"])

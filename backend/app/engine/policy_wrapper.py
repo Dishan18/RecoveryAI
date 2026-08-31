@@ -225,6 +225,23 @@ async def execute_policy_turn(
             resulting_state = State.SPLIT_FIRST_HALF_PENDING
             action_executed = "Debtor promised immediate payment on 1-hour follow up. Direct link dispatched."
             trigger_auto_close = True
+        elif previous_state in (State.TIER_1_DISCOUNT, State.TIER_2_DISCOUNT, State.TIER_3_FLOOR) and intent_data.is_split_requested:
+            # Debtor selected Split Payment on full amount over one-time discount
+            target_due = datetime.now(timezone.utc) + timedelta(hours=1)
+            resolved_ptp_date = target_due
+            invoice.next_action_due_at = target_due
+            invoice.call_pending = False
+            half_amt = (gross_amount / Decimal("2")).quantize(Decimal("0.01"))
+            if sm.can_transition(State.SPLIT_FIRST_HALF_PENDING):
+                resulting_state = State.SPLIT_FIRST_HALF_PENDING
+                await sm.transition(
+                    target_state=State.SPLIT_FIRST_HALF_PENDING,
+                    discount_offered=0.0,
+                    ptp_deadline=target_due,
+                    log_message=f"Debtor selected Split Payment Plan on full amount over one-time discount (50% ₹{half_amt:,.0f} due in 1 hr; remaining 50% in 3 days PTP).",
+                )
+            action_executed = f"Debtor selected Split Payment Plan on full amount (1st 50% ₹{half_amt:,.0f} due in 1 hour). Awaiting 1st half payment."
+            trigger_auto_close = True
         else:
             if sm.can_transition(State.LINK_SENT):
                 resulting_state = State.LINK_SENT
@@ -240,7 +257,7 @@ async def execute_policy_turn(
     # 2. PROMISE_TO_PAY — Negotiate commitment date (MAX 3 DAYS ALLOWED)
     # ─────────────────────────────────────────────────────────────────────────
     elif intent == "PROMISE_TO_PAY":
-        if previous_state == State.SPLIT_OFFERED:
+        if previous_state == State.SPLIT_OFFERED or (previous_state in (State.TIER_1_DISCOUNT, State.TIER_2_DISCOUNT, State.TIER_3_FLOOR) and intent_data.is_split_requested):
             target_due = datetime.now(timezone.utc) + timedelta(hours=1)
             resolved_ptp_date = target_due
             invoice.next_action_due_at = target_due
@@ -287,6 +304,7 @@ async def execute_policy_turn(
             trigger_auto_close = True
 
     # ─────────────────────────────────────────────────────────────────────────
+    # ─────────────────────────────────────────────────────────────────────────
     # 3. REQUEST_DISCOUNT — Customer asks for concession
     # ─────────────────────────────────────────────────────────────────────────
     elif intent == "REQUEST_DISCOUNT":
@@ -300,6 +318,90 @@ async def execute_policy_turn(
                 )
             action_executed = "Debtor defaulted on 1-hour split commitment and requested discount. Escalated to senior human officer."
             trigger_auto_close = True
+
+        elif current_tier > 0 and intent_data.is_split_requested:
+            # Debtor requested split payment combined with discount at an active discount tier
+            has_clarified_at_tier = any(
+                ("Discounted payment is not available for split payments" in (e.log_message or "")
+                 or "split on discount" in (e.log_message or ""))
+                for e in (invoice.recovery_events or [])
+                if e.current_state == previous_state
+            )
+
+            if not has_clarified_at_tier:
+                # ── First request at this tier: Clarify that split is not available on discounted amount ──
+                resulting_state = previous_state
+                if sm.can_transition(previous_state):
+                    await sm.transition(
+                        target_state=previous_state,
+                        discount_offered=float(authorized_discount_rate),
+                        log_message=f"Debtor requested split on Tier {current_tier} discount -> Clarified: Discounted payment is not available for split payments. Offered choice: split on full amount vs one-time discount (₹{authorized_net_amount:,.0f}).",
+                    )
+                action_executed = f"Debtor requested split on discount. Clarified: Discounted payment is not available for split payments. Offered choice: split on full amount vs one-time discount (₹{authorized_net_amount:,.0f})."
+                trigger_auto_close = False
+
+            else:
+                # ── Debtor persists/insists on split with discount after clarification ──
+                if current_tier == 1:
+                    # Advance to Tier 2 (one-time discount only)
+                    calc_res = calculator.calculate(merchant_cap, consecutive_months, 2, gross_amount)
+                    if calc_res.is_accessible and sm.can_transition(State.TIER_2_DISCOUNT):
+                        authorized_discount_rate = calc_res.discount_rate
+                        authorized_net_amount = calc_res.net_payable_inr
+                        resulting_state = State.TIER_2_DISCOUNT
+                        await sm.transition(
+                            target_state=State.TIER_2_DISCOUNT,
+                            discount_offered=float(authorized_discount_rate),
+                            log_message=f"Debtor insisted on split discount -> Declined split on discount. Offered Tier 2 one-time concession ({calc_res.discount_pct}) only.",
+                        )
+                        action_executed = f"Debtor insisted on split discount. Offered Tier 2 one-time concession ({calc_res.discount_pct}) only."
+                    else:
+                        resulting_state = State.ESCALATED_HUMAN
+                        invoice.call_pending = False
+                        if sm.can_transition(State.ESCALATED_HUMAN):
+                            await sm.transition(
+                                target_state=State.ESCALATED_HUMAN,
+                                log_message="Debtor insisted on split discount & Tier 2 blocked -> Escalated",
+                            )
+                        action_executed = "Tier 2 blocked by policy -> Escalated to senior financial officer."
+                        trigger_auto_close = True
+
+                elif current_tier == 2:
+                    # Advance to Tier 3 Final Floor (one-time discount only)
+                    calc_res = calculator.calculate(merchant_cap, consecutive_months, 3, gross_amount)
+                    if calc_res.is_accessible and sm.can_transition(State.TIER_3_FLOOR):
+                        authorized_discount_rate = calc_res.discount_rate
+                        authorized_net_amount = calc_res.net_payable_inr
+                        resulting_state = State.TIER_3_FLOOR
+                        await sm.transition(
+                            target_state=State.TIER_3_FLOOR,
+                            discount_offered=float(authorized_discount_rate),
+                            log_message=f"Debtor persisted on split discount -> Offered Tier 3 Final Floor ({calc_res.discount_pct}) for one-time payment only.",
+                        )
+                        action_executed = f"Debtor persisted on split discount. Offered Tier 3 Final Floor ({calc_res.discount_pct}) for one-time payment only."
+                    else:
+                        resulting_state = State.ESCALATED_HUMAN
+                        invoice.call_pending = False
+                        if sm.can_transition(State.ESCALATED_HUMAN):
+                            await sm.transition(
+                                target_state=State.ESCALATED_HUMAN,
+                                log_message="Debtor insisted on split discount & Tier 3 blocked -> Escalated",
+                            )
+                        action_executed = "Tier 3 blocked by policy -> Escalated to senior financial officer."
+                        trigger_auto_close = True
+
+                elif current_tier >= 3:
+                    # Kept insisting after final discount offer -> Hard Escalation
+                    resulting_state = State.ESCALATED_HUMAN
+                    invoice.call_pending = False
+                    if sm.can_transition(State.ESCALATED_HUMAN):
+                        await sm.transition(
+                            target_state=State.ESCALATED_HUMAN,
+                            log_message="Debtor insisted on split discount after final Tier 3 floor offer -> Escalated to senior financial officer.",
+                        )
+                    action_executed = "Debtor insisted on split discount after final discount offer. Escalated to senior financial officer."
+                    trigger_auto_close = True
+
         else:
             # Next tier to evaluate
             next_tier = min(current_tier + 1, 3)

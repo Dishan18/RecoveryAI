@@ -909,6 +909,9 @@ async def classify_debtor_intent(
         "DISPUTE", "TECHNICAL_PROBLEM", "REQUEST_PAYMENT_LINK", "UNKNOWN"
     }
 
+    raw_lower = transcript.lower()
+    is_split = bool(re.search(r"(split|स्प्लिट|aadha|आधा|half|50%)", raw_lower))
+
     if parsed and parsed.get("intent") in valid_intents:
         try:
             stated_discount = None
@@ -922,6 +925,8 @@ async def classify_debtor_intent(
                 ptp_date_extracted=parsed.get("ptp_date_extracted"),
                 dispute_reason=parsed.get("dispute_reason"),
                 sentiment=parsed.get("sentiment", "COOPERATIVE"),
+                raw_transcript=transcript,
+                is_split_requested=is_split,
             )
         except Exception as exc:
             logger.debug("Failed parsing Gemini structured intent object: %s", exc)
@@ -939,6 +944,8 @@ async def classify_debtor_intent(
         ptp_date_extracted=fb["ptp_date_extracted"],
         dispute_reason=fb["dispute_reason"],
         sentiment=fb.get("sentiment", "COOPERATIVE"),
+        raw_transcript=transcript,
+        is_split_requested=is_split,
     )
 
 
@@ -962,6 +969,11 @@ async def generate_grounded_speech(
 
     # 1. Terminal Escalation Invariant
     if state == "ESCALATED_HUMAN":
+        if "split discount" in turn_decision.action_executed.lower():
+            return _sanitize_speech_output(
+                "Kyunki aap final one-time discount offer se sehmat nahi hain aur split discount policy allow nahi karti, "
+                "hum yeh case senior financial officer ko escalate kar rahe hain. Dhanyawad."
+            )
         if "breach" in turn_decision.action_executed.lower() or "prohibits" in turn_decision.action_executed.lower():
             return _sanitize_speech_output(
                 "Aapka pichla payment commitment breach ho chuka hai, isliye ab mazeed samay allow nahi hai. "
@@ -978,6 +990,14 @@ async def generate_grounded_speech(
         return _sanitize_speech_output(
             f"Maine aapka dispute record kar liya hai regarding {reason}. Humari billing "
             "team iski jaanch karegi aur collection call abhi ke liye rok di gayi hai."
+        )
+
+    # 2b. Clarification: Split on Discount Not Allowed
+    if "Discounted payment is not available for split payments" in turn_decision.action_executed or "split on discount" in turn_decision.action_executed.lower():
+        net_str = f"₹{turn_decision.authorized_net_amount:,.0f}"
+        return _sanitize_speech_output(
+            f"Discounted payment split mein available nahi hai. Yeh concession sirf one-time payment ({net_str}) ke liye hai. "
+            "Kya aap full amount par split payment (50% abhi aur 50% 3 din mein) karna chahenge, ya yeh one-time discounted price pay karenge?"
         )
 
     # 3. Split Payment Plan Offer Invariant (Margin Preservation)
@@ -1021,6 +1041,19 @@ async def generate_grounded_speech(
     if state in ("TIER_1_DISCOUNT", "TIER_2_DISCOUNT", "TIER_3_FLOOR"):
         pct_str = f"{turn_decision.authorized_discount_rate * 100:.0f}%"
         net_str = f"₹{turn_decision.authorized_net_amount:,.0f}"
+
+        # If debtor insisted on split discount and engine progressed down discount ladder
+        if "insisted on split discount" in turn_decision.action_executed.lower() or "persisted on split discount" in turn_decision.action_executed.lower():
+            if state == "TIER_3_FLOOR":
+                return _sanitize_speech_output(
+                    f"Split payment par discount allow nahi hai. Yeh hamara final one-time offer hai: {pct_str} discount, "
+                    f"jisse aapko sirf {net_str} pay karna hoga. Kya main one-time payment link bhej doon?"
+                )
+            elif state == "TIER_2_DISCOUNT":
+                return _sanitize_speech_output(
+                    f"Split payment par discount allow nahi hai, lekin hum one-time payment par discount badhakar {pct_str} kar sakte hain, "
+                    f"jisse aapko sirf {net_str} pay karna hoga. Kya aap ise one-time finalize karenge?"
+                )
 
         # If customer asked for a high discount (e.g. 50%) but policy authorized 5%
         if turn_decision.customer_stated_discount_pct and turn_decision.customer_stated_discount_pct > (turn_decision.authorized_discount_rate * 100):
