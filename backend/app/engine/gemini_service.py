@@ -162,317 +162,141 @@ Rules:
 
 
 _FALLBACK_RULES: list[tuple[list[str], str, str]] = [
+    # ─── PRIORITY 1: DISPUTE (Immediate Freeze) ─────────────────────────────
+    # Must be checked FIRST — freezes all collection activity immediately.
     (
         [
-            "never pay",
-            "will never pay",
-            "kabhi nahi dunga",
-            "kabhi bhi nahi dunga",
-            "kabhi nahi dunga jo karna hai kar lo",
-            "refuse forever",
-            "do whatever you want",
+            "gst", "जीएसटी", "tds", "टीडीएस", "dispute", "डिस्प्यूट",
+            "wrong amount", "गलत अमाउंट", "incorrect amount", "wrong billing",
+            "बिलिंग गलत", "galat amount", "galat", "गलत", "credit note", "क्रेडिट नोट",
+            "tax invoice", "invoice error", "invoice galat", "already paid",
+            "pehle hi pay", "disputed", "overcharged", "wrong bill",
+            "fraud", "dhokha", "complaint", "nahi mangwaya", "not ordered",
+            "defective", "quality issue", "service issue", "nahi liya tha",
+            "बिल गलत", "ये amount गलत", "wrong charge", "order nahi kiya",
+        ],
+        "DISPUTE",
+        "Debtor raised an invoice amount / GST / TDS / billing dispute.",
+    ),
+    # ─── PRIORITY 2: HARD REFUSAL ────────────────────────────────────────────
+    (
+        [
+            "never pay", "will never pay", "kabhi nahi dunga",
+            "kabhi bhi nahi dunga", "refuse forever",
+            "do whatever you want", "jo karna hai karo", "court jao",
+            "cancel karo", "I refuse to pay", "i refuse",
         ],
         "HARD_REFUSAL",
         "Debtor expressed explicit permanent refusal to pay forever.",
     ),
+    # ─── PRIORITY 3: REQUEST_DISCOUNT / CONCESSION ───────────────────────────
+    # Must be checked BEFORE PTP and PAY_NOW: if discount keywords are present
+    # in the same sentence as "payment" or "dunga", discount takes priority.
     (
         [
-            "next week",
-            "नेक्स्ट वीक",
-            "agle hafte",
-            "अगले हफ्ते",
-            "agle hafte / 5 din",
-            "agle hafte /",
-            "5 din baad",
-            "5 दिन बाद",
-            "4 din",
-            "5 din",
-            "6 din",
-            "7 din",
-            "8 din",
-            "9 din",
-            "10 din",
-            "15 din",
-            "4 days",
-            "5 days",
-            "6 days",
-            "7 days",
-            "10 days",
-            "4 दिन",
-            "5 दिन",
-            "6 दिन",
-            "7 दिन",
-            "10 दिन",
-            "15 दिन",
-            "4 डेज़",
-            "5 डेज़",
-            "5 डेज",
-            "चार दिन",
-            "पांच दिन",
-            "छह दिन",
-            "सात दिन",
-            "दस दिन",
-            "month end",
-            "agle mahine",
-            "अगले महीने",
-            "next month",
-            "2 weeks",
-            "do hafte",
-            "दो हफ्ते",
+            "discount", "डिस्काउंट", "छूट", "concession", "कंसेंशन",
+            "waiver", "वेवर", "kam karo", "कम करो", "paisa kam",
+            "kam kardo", "give discount", "kuch discount",
+            "thoda kam", "thoda discount", "discount milega",
+            "settlement", "डिस्काउंट चाहिए", "discount chahiye",
+            "discount de do", "discount do", "percent off",
+            "परसेंट", "प्रतिशत", "chhoot", "riyayat", "रियायत",
+            "kam ho", "kam kar", "reduce", "less karo",
+        ],
+        "REQUEST_DISCOUNT",
+        "Debtor explicitly requested a discount or settlement concession.",
+    ),
+    # ─── PRIORITY 4: PTP_EXCEEDS_POLICY (>3 days) ───────────────────────────
+    (
+        [
+            "next week", "नेक्स्ट वीक", "agle hafte", "अगले हफ्ते",
+            "agle hafte /", "5 din baad", "5 दिन बाद",
+            "4 din", "5 din", "6 din", "7 din", "8 din", "9 din",
+            "10 din", "15 din",
+            "4 days", "5 days", "6 days", "7 days", "10 days",
+            "4 दिन", "5 दिन", "6 दिन", "7 दिन", "10 दिन", "15 दिन",
+            "4 डेज़", "5 डेज़", "5 डेज",
+            "चार दिन", "पांच दिन", "छह दिन", "सात दिन", "दस दिन",
+            "month end", "agle mahine", "अगले महीने", "next month",
+            "2 weeks", "do hafte", "दो हफ्ते",
         ],
         "PTP_EXCEEDS_POLICY",
         "Debtor requested a payment timeline exceeding the 3-day recovery policy limit.",
     ),
+    # ─── PRIORITY 5: PROMISE_TO_PAY (within 1-3 days) ───────────────────────
     (
         [
-            "आई नीड थ्री डेज़",
-            "आई नीड थ्री डेज",
-            "आई नीड 3 डेज़",
-            "नीड थ्री डेज़",
-            "थ्री डेज़",
-            "थ्री डेज",
-            "3 डेज़",
-            "3 डेज",
-            "टु डेज़",
-            "टु डेज",
-            "टू डेज़",
-            "टू डेज",
-            "2 डेज़",
-            "2 डेज",
-            "वन डे",
-            "1 डे",
-            "1 दिन",
-            "एक दिन",
-            "1 day",
-            "one day",
-            "1 din",
-            "ek din",
-            "2 दिन",
-            "दो दिन",
-            "2 days",
-            "two days",
-            "2 din",
-            "do din",
-            "3 दिन",
-            "तीन दिन",
-            "3 days",
-            "three days",
-            "3 din",
-            "teen din",
-            "kal",
-            "कल",
-            "parso",
-            "परसों",
-            "monday",
-            "tuesday",
-            "wednesday",
-            "thursday",
-            "friday",
-            "saturday",
-            "sunday",
-            "मंडे",
-            "सोमवार",
-            "मंगलवार",
-            "बुधवार",
-            "गुरुवार",
-            "शुक्रवार",
-            "शनिवार",
-            "रविवार",
-            "28th",
-            "29th",
-            "30th",
-            "31st",
-            "august",
-            "september",
-            "october",
-            "day after",
-            "tomorrow",
+            "आई नीड थ्री डेज़", "आई नीड थ्री डेज", "आई नीड 3 डेज़",
+            "नीड थ्री डेज़", "थ्री डेज़", "थ्री डेज",
+            "3 डेज़", "3 डेज", "टु डेज़", "टु डेज", "टू डेज़", "टू डेज",
+            "2 डेज़", "2 डेज", "वन डे", "1 डे",
+            "1 दिन", "एक दिन", "1 day", "one day", "1 din", "ek din",
+            "2 दिन", "दो दिन", "2 days", "two days", "2 din", "do din",
+            "3 दिन", "तीन दिन", "3 days", "three days", "3 din", "teen din",
+            "kal", "कल", "parso", "परसों",
+            "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
+            "मंडे", "सोमवार", "मंगलवार", "बुधवार", "गुरुवार", "शुक्रवार", "शनिवार", "रविवार",
+            "28th", "29th", "30th", "31st",
+            "day after", "tomorrow",
         ],
         "PROMISE_TO_PAY",
         "Debtor indicated an explicit payment timeline commitment within policy.",
     ),
+    # ─── PRIORITY 6: REQUEST_NEGOTIATION / SOFT REFUSAL ──────────────────────
     (
         [
-            "main yeh payment kar dunga",
-            "main ye payment kar dunga",
-            "main yeh payment kar deta",
-            "yeh payment kar dunga",
-            "ye payment kar dunga",
-            "main payment kar dunga",
-            "payment kar dunga",
-            "theek hai main kar deta",
-            "theek hai main payment",
-            "theek hai kar deta",
-            "theek hai kar dunga",
-            "theek hai payment",
-            "kar deta hoon",
-            "kar deta hu",
-            "kar raha hoon",
-            "kar raha hu",
-            "i will pay",
-            "i will make the payment",
-            "i agree to pay",
-            "will pay now",
-            "pay now",
-            "abhi kar deta",
-            "abhi kar dunga",
-            "abhi pay kar",
-            "payment kar raha",
-            "main kar deta",
-            "main kar dunga",
-            "theek hai",
-            "haan kar dunga",
-            "haan main",
-            "haan 3 din",
-            "haan theek",
-            "haan chalega",
-            "main yeh pay",
-            "मैं यह पेमेंट कर दूंगा",
-            "मैं पेमेंट कर दूंगा",
-            "मैं यह पेमेंट",
-            "ठीक है मैं कर देता हूँ",
-            "मैं कर देता हूँ",
-            "मैं अभी पेमेंट",
-            "कर देता हूँ",
-            "कर दूँगा",
-            "दे दूँगा",
-            "de dunga",
-            "दे दूंगा",
-            "दूंगा",
-            "दूँगा",
-            "कर दूंगा",
-            "transfer",
-            "ट्रांसफर",
-            "will pay",
-            "pay kar dunga",
-            "will clear",
-        ],
-        "AGREED_TO_PAY",
-        "Debtor agreed to settle payment without a specific future date.",
-    ),
-    (
-        [
-            "cannot settle",
-            "cannot pay today",
-            "not possible today",
-            "cannot pay",
-            "aaj nahi",
-            "aaj paise nahi",
-            "aaj possible nahi",
-            "no i cannot",
-            "can not settle",
-            "settle today",
-            "नो",
-            "आई कैन नॉट",
-            "आज नहीं",
-            "नहीं हो सकता",
-            "नहीं, मैं आज",
-            "आज इसको सेटल नहीं",
-            "सेटल नहीं कर पाऊंगा",
-            "सेटल नहीं",
-            "नहीं कर पाऊंगा",
-            "आज नहीं होगा",
-            "नहीं हो पाएगा",
-            "aaj settle nahi hoga",
-            "abhi paise nahi hain",
-            "too high",
-            "reduce more",
-            "give me more discount",
-            "will not pay today",
-            "not today",
-            "aaj nahi ho payega",
-            "nahi kar paunga",
-            "nahi ho payega",
-            "nahi kar sakta",
-            "नहीं कर सकता",
-            "nahi",
-            "नहीं",
-            "नही",
-            "no",
-            "won't",
-            "not paying today",
-            "nahi ho sakta",
-            "nahi chalega",
+            "cannot settle", "cannot pay today", "not possible today",
+            "cannot pay", "aaj nahi", "aaj paise nahi", "aaj possible nahi",
+            "no i cannot", "can not settle",
+            "आई कैन नॉट", "आज नहीं", "नहीं हो सकता",
+            "नहीं, मैं आज", "आज इसको सेटल नहीं",
+            "सेटल नहीं कर पाऊंगा", "सेटल नहीं",
+            "नहीं कर पाऊंगा", "आज नहीं होगा", "नहीं हो पाएगा",
+            "aaj settle nahi hoga", "abhi paise nahi hain",
+            "too high", "reduce more", "give me more discount",
+            "will not pay today", "not today",
+            "aaj nahi ho payega", "nahi kar paunga",
+            "nahi ho payega", "nahi kar sakta", "नहीं कर सकता",
+            "not paying today", "nahi ho sakta", "nahi chalega",
+            "not enough", "still not enough", "too low",
         ],
         "REQUEST_NEGOTIATION",
         "Debtor indicated inability/unwillingness to settle today or refusal of proposed terms.",
     ),
+    # ─── PRIORITY 7: AGREED_TO_PAY (Affirmative commitment) ─────────────────
+    # Only matches when NOT preceded by negation in the same sentence.
+    # Moved AFTER discount/dispute/refusal to prevent false positives.
     (
         [
-            "gst",
-            "जीएसटी",
-            "tds",
-            "टीडीएस",
-            "dispute",
-            "डिस्प्यूट",
-            "wrong amount",
-            "गलत अमाउंट",
-            "incorrect amount",
-            "wrong billing",
-            "बिलिंग गलत",
-            "galat amount",
-            "credit note",
-            "क्रेडिट नोट",
-            "tax invoice",
-            "invoice error",
-            "invoice galat",
-            "already paid",
-            "pehle hi pay",
-            "disputed",
-            "overcharged",
+            "main yeh payment kar dunga", "main ye payment kar dunga",
+            "main yeh payment kar deta", "yeh payment kar dunga",
+            "main payment kar dunga", "payment kar dunga",
+            "theek hai main kar deta", "theek hai main payment",
+            "theek hai kar deta", "theek hai kar dunga",
+            "theek hai payment", "kar deta hoon", "kar deta hu",
+            "i will pay", "i will make the payment",
+            "i agree to pay", "will pay now", "pay now",
+            "abhi kar deta", "abhi kar dunga", "abhi pay kar",
+            "main kar deta", "main kar dunga", "haan kar dunga",
+            "haan main", "haan 3 din", "haan theek", "haan chalega",
+            "मैं यह पेमेंट कर दूंगा", "मैं पेमेंट कर दूंगा",
+            "ठीक है मैं कर देता हूँ", "मैं कर देता हूँ",
+            "मैं अभी पेमेंट",
         ],
-        "DISPUTE",
-        "Debtor raised an invoice amount / GST / TDS billing dispute.",
+        "AGREED_TO_PAY",
+        "Debtor agreed to settle payment without a specific future date.",
     ),
+    # ─── PRIORITY 8: REQUEST_ALTERNATE_LINK ──────────────────────────────────
     (
         [
-            "link",
-            "लिंक",
-            "payment link",
-            "पेमेंट लिंक",
-            "alternate link",
-            "qr",
-            "क्यूआर",
-            "qr code",
-            "upi",
-            "यूपीआई",
-            "upi id",
-            "send link",
-            "लिंक भेजो",
-            "bhejo",
-            "gpay",
-            "phonepe",
-            "paytm",
-            "razorpay",
-            "link expired",
-            "link not working",
-            "reshare",
+            "payment link", "पेमेंट लिंक", "alternate link",
+            "qr code", "क्यूआर", "upi", "यूपीआई", "upi id",
+            "send link", "लिंक भेजो", "bhejo link", "link bhejo",
+            "gpay", "phonepe", "paytm", "razorpay",
+            "link expired", "link not working", "reshare",
         ],
         "REQUEST_ALTERNATE_LINK",
         "Debtor requested a fresh/alternate digital payment link or QR code.",
-    ),
-    (
-        [
-            "discount",
-            "छूट",
-            "concession",
-            "कंसेंशन",
-            "waiver",
-            "वेवर",
-            "kam karo",
-            "कम करो",
-            "paisa kam",
-            "kam kardo",
-            "give discount",
-            "kuch discount",
-            "thoda kam",
-            "thoda discount",
-            "discount milega",
-            "offer",
-            "settlement",
-        ],
-        "REQUEST_DISCOUNT",
-        "Debtor explicitly requested a discount or settlement concession.",
     ),
 ]
 
@@ -728,9 +552,9 @@ You are an intent classification engine for an Indian payment recovery conversat
 Analyze the debtor's speech (in English, Hindi, Devanagari Hindi, or Latin Hinglish) and return a JSON object conforming strictly to this structure:
 - "intent": exactly one of ["PAY_NOW", "PROMISE_TO_PAY", "REQUEST_DISCOUNT", "REFUSAL", "DISPUTE", "TECHNICAL_PROBLEM", "REQUEST_PAYMENT_LINK", "UNKNOWN"]
 - "confidence": float between 0.0 and 1.0
-- "customer_stated_discount_pct": numeric percentage value (e.g. 50.0 for "50% discount", "fifty percent", "पचास प्रतिशत", "फिफ्टी परसेंट") if the customer explicitly requested a discount percentage, else null. (Informational only)
-- "ptp_date_extracted": raw text timeframe or date if debtor promises future payment (e.g. "Friday", "Monday", "कल", "3 days", "3 din", "तीन दिन"), else null.
-- "dispute_reason": summary of dispute if customer claims incorrect billing, GST, TDS, or quality issues, else null.
+- "customer_stated_discount_pct": numeric percentage value if the customer explicitly requested a discount percentage, else null. (Informational only)
+- "ptp_date_extracted": raw text timeframe or date if debtor promises future payment, else null.
+- "dispute_reason": summary of dispute if customer claims incorrect billing, GST, TDS, quality, or fraud issues, else null.
 - "sentiment": one of ["COOPERATIVE", "DISTRESSED", "EVASIVE", "HOSTILE"]
 
 Context:
@@ -742,15 +566,43 @@ Context:
 
 Debtor Speech Transcript: "{transcript}"
 
-CRITICAL CLASSIFICATION RULES:
-- If debtor asks for discount, concession, reduction, or specific percentage (e.g. "मुझे फिफ्टी परसेंट डिस्काउंट चाहिए", "I need a discount of fifty percent", "मुझे पचास प्रतिशत डिस्काउंट चाहिए", "50% discount", "25% discount de do", "thoda discount de do", "discount chahiye", "kuch discount milega?", "agar aap discount doge toh payment kar dunga", "आई नीड अ डिस्काउंट ऑफ फिफ्टी परसेंट") -> "REQUEST_DISCOUNT" (customer_stated_discount_pct: extracted number, e.g. 50.0)
-- If debtor states a future date or timeframe to pay (e.g. "I'll pay in 3 days", "मैं तीन दिन में payment कर दूंगा", "3 din mein payment kar dunga", "I'll pay Friday", "Monday tak kar dunga", "कल दूंगा", "next week") -> "PROMISE_TO_PAY"
-- If debtor says payment gateway timed out, UPI failed, or technical transaction issue occurred (e.g. "UPI isn't working", "Payment gateway is failing", "मेरी payment नहीं जा रही") -> "TECHNICAL_PROBLEM"
-- If debtor says invoice is wrong, GST/TDS mismatch, or dispute (e.g. "Invoice amount is wrong", "ये amount गलत है", "I don't owe this amount") -> "DISPUTE"
-- If debtor rejects payment terms, says concession is too low, or refuses (e.g. "No, I won't pay", "nahi karunga", "nahi dunga", "not enough", "too high", "not possible") -> "REFUSAL"
-- If debtor asks for payment link/QR code -> "REQUEST_PAYMENT_LINK"
-- If debtor says they are paying right now (e.g. "I'll pay now", "abhi payment kar raha hoon", "clearing it now") -> "PAY_NOW"
-- Do NOT include any reasoning or chain-of-thought fields. Output pure JSON only.
+STRICT PRIORITY-ORDERED CLASSIFICATION RULES:
+
+PRIORITY 1 — DISPUTE (highest priority):
+If debtor mentions wrong amount, billing error, GST/TDS mismatch, fraud, defective goods, "not ordered", or complaint → "DISPUTE"
+
+PRIORITY 2 — REFUSAL:
+If debtor explicitly says "never pay", "refuse", "court jao", "cancel karo", "won't pay ever" → "REFUSAL"
+
+PRIORITY 3 — REQUEST_DISCOUNT (takes precedence over PAY_NOW/PTP):
+If debtor mentions discount, concession, percentage off, "kam karo", "छूट", "डिस्काउंट", percentage words — even if the sentence also contains "payment" or "pay" in conditional/negative context → "REQUEST_DISCOUNT"
+
+PRIORITY 4 — PROMISE_TO_PAY:
+If debtor mentions a future date/timeframe to pay ("kal", "3 din", "Friday", "next week") → "PROMISE_TO_PAY"
+
+PRIORITY 5 — TECHNICAL_PROBLEM:
+If debtor reports UPI failure, gateway timeout, bank issue, OTP not received → "TECHNICAL_PROBLEM"
+
+PRIORITY 6 — PAY_NOW (lowest intent priority):
+Only if debtor expresses clear, unconditional, affirmative commitment to pay immediately — WITHOUT negation ("नहीं", "nahi", "won't", "cancel") and WITHOUT discount/concession keywords → "PAY_NOW"
+
+PRIORITY 7 — REQUEST_PAYMENT_LINK:
+If debtor asks for payment link or QR code → "REQUEST_PAYMENT_LINK"
+
+CRITICAL: If a sentence contains BOTH discount keywords AND payment/pay words (e.g. "मुझे फिफ्टी परसेंट डिस्काउंट चाहिए नहीं तो मैं यह पेमेंट नहीं कर पाऊंगा"), classify as REQUEST_DISCOUNT, NOT PAY_NOW.
+
+FEW-SHOT EXAMPLES:
+- "मुझे फिफ्टी परसेंट डिस्काउंट चाहिए नहीं तो मैं यह पेमेंट नहीं कर पाऊंगा" → {{"intent":"REQUEST_DISCOUNT","customer_stated_discount_pct":50.0}}
+- "गलत बिल भेजा है आपने, मैं पैसे नहीं दूंगा" → {{"intent":"DISPUTE","dispute_reason":"Wrong bill sent"}}
+- "5 din baad salary aane par dunga" → {{"intent":"PROMISE_TO_PAY","ptp_date_extracted":"+5 days"}}
+- "abhi link bhejo pay karta hu" → {{"intent":"PAY_NOW"}}
+- "UPI reject ho raha hai bar bar" → {{"intent":"TECHNICAL_PROBLEM"}}
+- "agar 10% off milega toh aaj pay karunga" → {{"intent":"REQUEST_DISCOUNT","customer_stated_discount_pct":10.0}}
+- "पेमेंट नहीं होगा, cancel karo" → {{"intent":"REFUSAL"}}
+- "discount chahiye, nahi to nahi dunga" → {{"intent":"REQUEST_DISCOUNT"}}
+- "thoda discount de do" → {{"intent":"REQUEST_DISCOUNT"}}
+
+Do NOT include any reasoning or chain-of-thought fields. Output pure JSON only.
 """
 
 _HINDI_NUM_WORDS: dict[str, float] = {
@@ -769,18 +621,75 @@ _HINDI_NUM_WORDS: dict[str, float] = {
     "सौ": 100.0, "hundred": 100.0,
 }
 
+# Negation tokens used to suppress affirmative PAY_NOW classification
+_NEGATION_TOKENS = [
+    "नहीं", "नही", "nahi", "nhi", "mat", "मत", "won't", "wont", "cancel",
+    "कैंसिल", "refuse", "never", "kabhi nahi", "नहीं कर पाऊंगा",
+    "नहीं होगा", "nahi dunga", "nahi karunga", "not possible",
+]
+
 
 def _rule_based_fallback_classification(transcript: str) -> dict:
-    """Deterministic rule-based intent classifier with comprehensive Hindi/Hinglish/English support."""
+    """
+    Deterministic priority-ordered intent classifier for Hindi/Hinglish/English.
+
+    Priority Order (highest first):
+    1. DISPUTE — immediate collection freeze
+    2. REFUSAL — hard permanent refusal
+    3. REQUEST_DISCOUNT — concession/discount request (even if 'payment' is present)
+    4. PROMISE_TO_PAY — future date commitment
+    5. TECHNICAL_PROBLEM — gateway/UPI/bank failures
+    6. PAY_NOW — affirmative immediate payment (only if no negation/discount present)
+    7. REQUEST_PAYMENT_LINK — link/QR request
+    8. UNKNOWN — fallback
+    """
     raw = transcript.lower().strip()
 
-    # 1. Discount request
+    # ── PRIORITY 1: DISPUTE (Immediate Freeze) ──────────────────────────────
+    if any(w in raw for w in [
+        "galat", "गलत", "wrong", "dispute", "gst", "जीएसटी", "tds", "टीडीएस",
+        "billing error", "deliverable", "dhokha", "not owe", "don't owe", "not my",
+        "mismatch", "fraud", "complaint", "nahi mangwaya", "not ordered",
+        "defective", "quality issue", "service issue", "wrong bill",
+        "बिल गलत", "overcharged", "incorrect amount", "already paid",
+        "nahi liya tha", "order nahi kiya", "wrong charge",
+    ]):
+        return {
+            "intent": "DISPUTE",
+            "confidence": 0.97,
+            "customer_stated_discount_pct": None,
+            "ptp_date_extracted": None,
+            "dispute_reason": f"Debtor stated discrepancy: {transcript[:120]}",
+            "sentiment": "EVASIVE",
+        }
+
+    # ── PRIORITY 2: HARD REFUSAL ─────────────────────────────────────────────
+    if any(w in raw for w in [
+        "never pay", "will never pay", "kabhi nahi dunga", "kabhi bhi nahi",
+        "refuse forever", "do whatever you want", "jo karna hai karo",
+        "court jao", "cancel karo", "i refuse to pay", "i refuse",
+    ]):
+        return {
+            "intent": "REFUSAL",
+            "confidence": 0.97,
+            "customer_stated_discount_pct": None,
+            "ptp_date_extracted": None,
+            "dispute_reason": None,
+            "sentiment": "HOSTILE",
+        }
+
+    # ── PRIORITY 3: REQUEST_DISCOUNT (before PTP and PAY_NOW) ────────────────
+    # Discount keywords and Hindi number words take precedence.
     has_discount_kw = any(w in raw for w in [
         "discount", "डिस्काउंट", "chhoot", "छूट", "kam karo", "kam kar", "kam ho",
-        "concession", "waiver", "off", "less", "reduce", "रियायत", "कम करो", "कम कर"
+        "concession", "waiver", "reduce", "रियायत", "कम करो", "कम कर",
+        "settlement", "discount chahiye", "डिस्काउंट चाहिए",
+        "discount de do", "thoda discount", "thoda kam", "kuch discount",
+        "discount milega", "paisa kam", "kam kardo", "less karo",
+        "percent off",
     ])
-    
-    # Try numeric regex first: e.g. "50%", "25 percent", "50 प्रतिशत", "50 परसेंट"
+
+    # Try numeric regex: e.g. "50%", "25 percent", "50 प्रतिशत", "50 परसेंट"
     pct_val: float | None = None
     pct_match = re.search(r"(\d+(\.\d+)?)\s*(%|percent|pratishat|प्रतिशत|परसेंट)?", raw)
     if pct_match and pct_match.group(1):
@@ -791,12 +700,14 @@ def _rule_based_fallback_classification(transcript: str) -> dict:
         except (ValueError, TypeError):
             pass
 
-    # Try word numbers: e.g. "fifty percent", "फिफ्टी परसेंट", "पचास प्रतिशत", "twenty five"
+    # Try word numbers: e.g. "fifty percent", "फिफ्टी परसेंट", "पचास प्रतिशत"
     if pct_val is None:
         for word, num in _HINDI_NUM_WORDS.items():
             if word in raw:
-                pct_val = num
-                break
+                # Only assign if discount context is present
+                if has_discount_kw or "परसेंट" in raw or "प्रतिशत" in raw or "percent" in raw or "%" in raw:
+                    pct_val = num
+                    break
 
     if has_discount_kw or pct_val is not None:
         return {
@@ -808,42 +719,15 @@ def _rule_based_fallback_classification(transcript: str) -> dict:
             "sentiment": "COOPERATIVE",
         }
 
-    # 2. Dispute
-    if any(w in raw for w in [
-        "galat", "गलत", "wrong", "dispute", "gst", "जीएसटी", "tds", "टीडीएस",
-        "billing error", "deliverable", "dhokha", "not owe", "don't owe", "not my", "mismatch"
-    ]):
-        return {
-            "intent": "DISPUTE",
-            "confidence": 0.95,
-            "customer_stated_discount_pct": None,
-            "ptp_date_extracted": None,
-            "dispute_reason": f"Debtor stated discrepancy: {transcript[:100]}",
-            "sentiment": "EVASIVE",
-        }
-
-    # 3. Technical Problem (Gateway / UPI)
-    if any(w in raw for w in [
-        "gateway", "upi", "यूपीआई", "failed", "fail", "timeout", "debit", "server",
-        "bank issue", "payment nahi ja rahi", "nahi ho raha", "stuck", "error"
-    ]):
-        return {
-            "intent": "TECHNICAL_PROBLEM",
-            "confidence": 0.95,
-            "customer_stated_discount_pct": None,
-            "ptp_date_extracted": None,
-            "dispute_reason": None,
-            "sentiment": "COOPERATIVE",
-        }
-
-    # 4. Promise to Pay
+    # ── PRIORITY 4: PROMISE_TO_PAY ───────────────────────────────────────────
     ptp_keywords = [
         "friday", "monday", "tuesday", "wednesday", "thursday", "saturday", "sunday",
         "मंडे", "सोमवार", "ट्यूजडे", "मंगलवार", "वेडनसडे", "बुधवार", "थर्सडे", "गुरुवार", "फ्राइडे", "शुक्रवार", "सैटरडे", "शनिवार", "संडे", "रविवार",
         "kal", "कल", "parso", "parson", "परसों", "tomorrow",
         "3 din", "teen din", "तीन दिन", "3 days", "2 din", "do din", "दो दिन", "2 days",
         "1 din", "ek din", "एक दिन", "1 day", "one day",
-        "5 din", "5 days", "next week", "agle hafte", "अगले हफ्ते", "week", "hafte"
+        "5 din", "5 days", "next week", "agle hafte", "अगले हफ्ते", "week", "hafte",
+        "salary aane par", "tareekh", "tarikh",
     ]
     for kw in ptp_keywords:
         if kw in raw:
@@ -856,11 +740,30 @@ def _rule_based_fallback_classification(transcript: str) -> dict:
                 "sentiment": "COOPERATIVE",
             }
 
-    # 5. Pay Now
+    # ── PRIORITY 5: TECHNICAL_PROBLEM (Gateway / UPI) ────────────────────────
     if any(w in raw for w in [
-        "pay now", "abhi payment", "abhi kar deta", "payment kar raha", "turant pay",
-        "clearing now", "abhi kar dunga", "main pay kar raha", "karta hoon", "kar deta hoon"
+        "gateway", "upi", "यूपीआई", "failed", "fail", "timeout", "debit", "server",
+        "bank issue", "payment nahi ja rahi", "nahi ho raha", "stuck", "error",
+        "otp", "link expired", "app crash", "credit nahi",
     ]):
+        return {
+            "intent": "TECHNICAL_PROBLEM",
+            "confidence": 0.95,
+            "customer_stated_discount_pct": None,
+            "ptp_date_extracted": None,
+            "dispute_reason": None,
+            "sentiment": "COOPERATIVE",
+        }
+
+    # ── PRIORITY 6: PAY_NOW — Only if affirmative AND no negation present ────
+    has_negation = any(neg in raw for neg in _NEGATION_TOKENS)
+    pay_now_phrases = [
+        "pay now", "abhi payment kar", "abhi kar deta", "turant pay",
+        "clearing now", "abhi kar dunga", "main pay kar raha",
+        "karta hoon", "kar deta hoon", "settle now", "ready to pay",
+        "abhi pay", "अभी पे", "abhi pe",
+    ]
+    if not has_negation and any(w in raw for w in pay_now_phrases):
         return {
             "intent": "PAY_NOW",
             "confidence": 0.95,
@@ -870,8 +773,11 @@ def _rule_based_fallback_classification(transcript: str) -> dict:
             "sentiment": "COOPERATIVE",
         }
 
-    # 6. Request payment link
-    if any(w in raw for w in ["link bhejo", "payment link", "send link", "qr code", "qr", "link", "लिंक"]):
+    # ── PRIORITY 7: REQUEST_PAYMENT_LINK ─────────────────────────────────────
+    if any(w in raw for w in [
+        "link bhejo", "payment link", "send link", "qr code", "qr", "लिंक",
+        "link", "लिंक भेजो",
+    ]):
         return {
             "intent": "REQUEST_PAYMENT_LINK",
             "confidence": 0.95,
@@ -881,21 +787,22 @@ def _rule_based_fallback_classification(transcript: str) -> dict:
             "sentiment": "COOPERATIVE",
         }
 
-    # 7. Refusal
-    if any(w in raw for w in [
-        "nahi karunga", "nahi dunga", "नहीं", "refuse", "too low", "too high",
-        "not possible", "nahi hoga", "no", "never", "won't pay", "kabhi nahi", "still not enough", "not enough"
+    # ── PRIORITY 8: SOFT REFUSAL (negation present but no other match) ───────
+    if has_negation or any(w in raw for w in [
+        "nahi karunga", "nahi dunga", "refuse", "too low", "too high",
+        "not possible", "nahi hoga", "no", "won't pay", "kabhi nahi",
+        "still not enough", "not enough", "cannot pay",
     ]):
         return {
             "intent": "REFUSAL",
-            "confidence": 0.90,
+            "confidence": 0.85,
             "customer_stated_discount_pct": None,
             "ptp_date_extracted": None,
             "dispute_reason": None,
             "sentiment": "EVASIVE",
         }
 
-    # Default fallback: strictly UNKNOWN (never GENERAL_INQUIRY)
+    # ── DEFAULT: UNKNOWN ─────────────────────────────────────────────────────
     return {
         "intent": "UNKNOWN",
         "confidence": 0.50,
@@ -980,6 +887,8 @@ async def generate_grounded_speech(
     """
     Generate natural Hinglish conversational speech strictly grounded in
     authoritative numbers provided by the deterministic Policy Engine.
+
+    All outputs are sanitized: no [PAYMENT_LINK], markdown, or emoji.
     """
     state = turn_decision.resulting_state
     cust_name = invoice_context.get("customer_name", "Customer")
@@ -987,7 +896,7 @@ async def generate_grounded_speech(
 
     # 1. Terminal Escalation Invariant
     if state == "ESCALATED_HUMAN":
-        return (
+        return _sanitize_speech_output(
             "Since you have declined the available payment options, I will forward "
             "this case to a senior financial officer for formal review. Thank you for your time."
         )
@@ -995,7 +904,7 @@ async def generate_grounded_speech(
     # 2. Frozen Dispute Invariant
     if state == "FROZEN_DISPUTE":
         reason = turn_decision.dispute_reason or "invoice discrepancy"
-        return (
+        return _sanitize_speech_output(
             f"Maine aapka dispute record kar liya hai regarding {reason}. Humari billing "
             "team iski jaanch karegi aur collection call abhi ke liye rok di gayi hai."
         )
@@ -1003,7 +912,7 @@ async def generate_grounded_speech(
     # 3. Promise to Pay Invariant
     if state == "PTP_ACTIVE":
         ptp_str = turn_decision.ptp_date.strftime("%d %B %Y") if turn_decision.ptp_date else "the agreed date"
-        return (
+        return _sanitize_speech_output(
             f"Dhanyawad! Maine {ptp_str} tak aapka payment commitment record kar liya hai. "
             "Payment link aapke mobile par bhej diya gaya hai."
         )
@@ -1016,30 +925,30 @@ async def generate_grounded_speech(
         # If customer asked for a high discount (e.g. 50%) but policy authorized 5%
         if turn_decision.customer_stated_discount_pct and turn_decision.customer_stated_discount_pct > (turn_decision.authorized_discount_rate * 100):
             req_pct = f"{turn_decision.customer_stated_discount_pct:.0f}%"
-            return (
+            return _sanitize_speech_output(
                 f"I understand you are asking for a {req_pct} discount. The maximum authorized concession available "
                 f"at this stage is {pct_str}, bringing your payable balance to {net_str}. "
                 "Would you like me to send you the payment link?"
             )
 
         if state == "TIER_3_FLOOR":
-            return (
+            return _sanitize_speech_output(
                 f"Humari policy ke mutabik yeh hamara final discount offer hai: {pct_str} concession, "
                 f"jisse aapko sirf {net_str} pay karna hoga. Iske baad koi aur discount sambhav nahi hoga. Kya main link bhej doon?"
             )
         elif state == "TIER_2_DISCOUNT":
-            return (
+            return _sanitize_speech_output(
                 f"Hum samajh sakte hain. Hum ise badhakar {pct_str} discount kar sakte hain, "
                 f"jisse aapki net payable amount {net_str} ho jayegi. Kya aap ise finalize karenge?"
             )
-        return (
+        return _sanitize_speech_output(
             f"We can offer you an authorized {pct_str} concession today, bringing your payable balance to "
             f"{net_str}. Would you like me to send you the payment link?"
         )
 
     # 5. Technical Gateway Issue
     if turn_decision.intent == "TECHNICAL_PROBLEM":
-        return (
+        return _sanitize_speech_output(
             "Payment gateway issue ke liye kshama chahte hain. Maine direct UPI aur alternate "
             "payment rails ka fresh link aapke phone par bhej diya hai."
         )
@@ -1047,15 +956,40 @@ async def generate_grounded_speech(
     # 6. Payment Link Request / Immediate Pay
     if turn_decision.intent in ("REQUEST_PAYMENT_LINK", "PAY_NOW") or state == "LINK_SENT":
         net_str = f"₹{turn_decision.authorized_net_amount:,.0f}"
-        return (
+        return _sanitize_speech_output(
             f"Maine payment link SMS aur WhatsApp par bhej diya hai. Kripya {net_str} ki payment "
             "link ke zariye turant complete karein."
         )
 
     # 7. Safe Default
     net_str = f"₹{turn_decision.authorized_net_amount:,.0f}"
-    return (
+    return _sanitize_speech_output(
         f"Namaste {cust_name} ji! Aapki total gross outstanding amount {net_str} hai with {merchant_name}. "
         "Kripya batayein ki aap payment abhi complete karna chahenge ya koi query hai?"
     )
+
+
+def _sanitize_speech_output(text: str) -> str:
+    """
+    Remove all non-speakable artifacts from TTS output:
+    - [PAYMENT_LINK], [LINK], [URL], etc.
+    - Markdown formatting (**, *, _, `, ##, etc.)
+    - Emojis (🙏, ⏰, etc.)
+    - Excessive whitespace
+    """
+    # Remove bracketed placeholders
+    text = re.sub(r"\[[\w_]+\]", "", text)
+    # Remove markdown bold/italic
+    text = re.sub(r"[*_`#]+", "", text)
+    # Remove emojis (comprehensive ranges)
+    text = re.sub(
+        r"[\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF"
+        r"\U0001F1E0-\U0001F1FF\U00002702-\U000027B0\U0000FE00-\U0000FE0F"
+        r"\U0001FA00-\U0001FA6F\U0001FA70-\U0001FAFF\U00002600-\U000026FF"
+        r"\U0000200D\U00002764\U0001F900-\U0001F9FF"
+        r"\U000023E9-\U000023FF\U00002300-\U000023FF]+", "", text
+    )
+    # Collapse multiple spaces
+    text = re.sub(r"\s{2,}", " ", text).strip()
+    return text
 
