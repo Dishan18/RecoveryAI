@@ -5,19 +5,21 @@ Async SQLAlchemy engine wired to Supabase PostgreSQL via asyncpg.
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.pool import NullPool
 
 from app.config import settings
+
+import uuid
 
 # ── Engine (Pure Supabase PostgreSQL via asyncpg) ──────────────────────────────
 engine = create_async_engine(
     settings.SUPABASE_DB_URL,
     echo=False,          # Set True for SQL query logging during development
     pool_pre_ping=True,  # Reconnect if connection drops
-    pool_size=10,
-    max_overflow=20,
+    poolclass=NullPool,  # Best practice for Supabase PgBouncer & Transaction Pooler
     connect_args={
         "statement_cache_size": 0,
-        "prepared_statement_cache_size": 0,
+        "prepared_statement_name_func": lambda: f"__stmt_{uuid.uuid4().hex}__",
     },
 )
 

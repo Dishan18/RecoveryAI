@@ -22,15 +22,31 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 
+from sqlalchemy import text
+from app.database import AsyncSessionLocal
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Run migrations (ensures tables & ALTER TABLE for columns)
+    # 1. Run migrations (ensures tables & ALTER TABLE for columns)
     try:
         await run_migrations()
     except Exception as e:
         logging.getLogger(__name__).error("Migration on startup failed: %s", e)
 
-    # Launch background autonomous scheduler task
+    # 2. Reset active transactional records for clean startup (eliminates startup Gemini burst storms)
+    async with AsyncSessionLocal() as db:
+        try:
+            logging.getLogger(__name__).info("Purging stale operational records for clean startup...")
+            await db.execute(text("DELETE FROM recovery_events;"))
+            await db.execute(text("DELETE FROM invoices;"))
+            await db.execute(text("DELETE FROM customers;"))
+            await db.commit()
+            logging.getLogger(__name__).info("Clean boot complete: Operations console initialized to 0 active cases.")
+        except Exception as e:
+            await db.rollback()
+            logging.getLogger(__name__).error(f"Startup clean purge failed: {e}")
+
+    # 3. Launch background autonomous scheduler task
     scheduler_task = asyncio.create_task(run_scheduler())
     yield
     # Cleanup

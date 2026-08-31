@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   Activity,
   AlertTriangle,
+  Bot,
   CheckCircle2,
   ChevronDown,
   Clock,
@@ -865,6 +866,41 @@ export default function OperationsConsole() {
             <div className="p-8 text-center text-zinc-400 text-xs flex items-center justify-center space-x-2">
               <RefreshCw size={14} className="animate-spin text-zinc-500" />
               <span>Loading recovery cases...</span>
+            </div>
+          ) : invoices.length === 0 ? (
+            <div className="p-12 text-center text-zinc-500 text-xs space-y-3 bg-zinc-50/50">
+              <div className="w-10 h-10 rounded-full bg-zinc-100 border border-zinc-200 text-zinc-400 flex items-center justify-center mx-auto">
+                <Bot size={20} />
+              </div>
+              <div className="max-w-md mx-auto space-y-1">
+                <p className="font-semibold text-zinc-800 text-sm">No active dunning cases in flight</p>
+                <p className="text-zinc-500 text-xs">
+                  No active dunning cases in flight. Click <strong className="text-zinc-700">[Seed DB]</strong> to load representative Indian recovery scenarios or create a manual entry.
+                </p>
+              </div>
+              <div className="flex items-center justify-center gap-2 pt-1">
+                <button
+                  onClick={async () => {
+                    try {
+                      setSettledInvoiceIds(new Set());
+                      const res = await api.seed();
+                      showToast(res.message || "Database seeded with 6 initial breach recovery cases");
+                      await loadData(true);
+                    } catch (e: unknown) {
+                      showToast("Error: " + (e instanceof Error ? e.message : "Error"));
+                    }
+                  }}
+                  className="px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded transition-colors"
+                >
+                  Seed Database
+                </button>
+                <button
+                  onClick={() => setIsManualModalOpen(true)}
+                  className="px-3 py-1.5 text-xs font-medium text-zinc-700 bg-white border border-zinc-300 hover:bg-zinc-50 rounded transition-colors"
+                >
+                  + Manual Entry
+                </button>
+              </div>
             </div>
           ) : filteredInvoices.length === 0 ? (
             <div className="p-8 text-center text-zinc-400 text-xs">
