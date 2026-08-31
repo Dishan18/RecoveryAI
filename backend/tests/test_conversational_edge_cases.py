@@ -556,7 +556,7 @@ class TestSplitPaymentFlow:
         intent = DebtorIntentClassification(intent="PAY_NOW", confidence=0.95, sentiment="COOPERATIVE")
         decision = asyncio.run(execute_policy_turn(inv, intent, MockSession()))
 
-        assert decision.resulting_state == State.PTP_ACTIVE
+        assert decision.resulting_state == State.SPLIT_FIRST_HALF_PENDING
         assert decision.authorized_discount_rate == Decimal("0.0")
         assert "Split Payment Plan" in decision.action_executed
         assert decision.trigger_auto_close is True

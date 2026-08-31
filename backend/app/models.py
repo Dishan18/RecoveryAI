@@ -110,8 +110,14 @@ class Invoice(Base):
         ForeignKey("merchants.id", ondelete="CASCADE"),
         nullable=False,
     )
-    # Amount due in ₹
+    # Amount due in ₹ (remaining balance)
     amount_inr: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
+    # Original invoice gross amount in ₹
+    original_amount_inr: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
+    # Total collected/settled amount in ₹
+    recovered_amount_inr: Mapped[float] = mapped_column(
+        Numeric(12, 2), nullable=False, default=0.0, server_default="0.0"
+    )
     # UNPAID | RESOLVED | DISPUTED | ESCALATED
     status: Mapped[str] = mapped_column(
         String(50), nullable=False, default="UNPAID"

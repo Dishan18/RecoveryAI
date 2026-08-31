@@ -50,6 +50,8 @@ class RecoveryEventOut(OrmBase):
 class InvoiceOut(OrmBase):
     id: uuid.UUID
     amount_inr: Decimal
+    original_amount_inr: Decimal | None = None
+    recovered_amount_inr: Decimal = Decimal("0.00")
     status: str
     failure_reason: str | None
     created_at: datetime

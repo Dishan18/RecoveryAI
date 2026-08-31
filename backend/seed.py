@@ -219,6 +219,8 @@ async def seed_database(session: AsyncSession) -> list[str]:
             **scenario["invoice"],
             customer_id=scenario["customer"]["id"],
             merchant_id=MERCHANT_ID,
+            original_amount_inr=scenario["invoice"]["amount_inr"],
+            recovered_amount_inr=0.00,
             next_action_due_at=next_due,
             call_pending=call_pend,
         )

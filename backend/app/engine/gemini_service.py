@@ -979,6 +979,14 @@ async def generate_grounded_speech(
             "Isse aapka account bina kisi penalty ke regularize ho jayega."
         )
 
+    # 3b. Split First Half Pending Invariant (1st 50% in 1 hour, remaining 50% in 3 days)
+    if state == "SPLIT_FIRST_HALF_PENDING":
+        return _sanitize_speech_output(
+            "Bahut shukriya! Maine aapka split payment plan confirm kar diya hai. "
+            "Pehle 50% ka payment link SMS aur WhatsApp par bhej diya gaya hai jo aap agle 1 ghante mein clear kar sakte hain, "
+            "aur baaki 50% agle 3 dinon mein scheduled hai. Dhanyawad!"
+        )
+
     # 4. Promise to Pay / Split Plan Acceptance Invariant
     if state == "PTP_ACTIVE":
         ptp_str = turn_decision.ptp_date.strftime("%d %B %Y") if turn_decision.ptp_date else "the agreed date"

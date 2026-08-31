@@ -79,17 +79,19 @@ const STATUS_CFG: Record<string, { label: string; textClass: string; bgClass: st
 };
 
 const STATE_CFG: Record<string, { label: string; textClass: string; bgClass: string }> = {
-  TRIGGERED:       { label: "Triggered",        textClass: "text-blue-700",   bgClass: "bg-blue-50"   },
-  DIAGNOSED:       { label: "Diagnosed",        textClass: "text-blue-700",   bgClass: "bg-blue-50"   },
-  REMINDER_SENT:   { label: "Reminder Sent",    textClass: "text-blue-700",   bgClass: "bg-blue-50"   },
-  LINK_SENT:       { label: "Link Sent",         textClass: "text-blue-700",   bgClass: "bg-blue-50"   },
-  PTP_ACTIVE:      { label: "PTP Active",        textClass: "text-amber-700",  bgClass: "bg-amber-50"  },
-  TIER_1_DISCOUNT: { label: "Tier 1 Discount",  textClass: "text-purple-700", bgClass: "bg-purple-50" },
-  TIER_2_DISCOUNT: { label: "Tier 2 Discount",  textClass: "text-purple-700", bgClass: "bg-purple-50" },
-  TIER_3_FLOOR:    { label: "Tier 3 Floor",      textClass: "text-purple-700", bgClass: "bg-purple-50" },
-  RESOLVED:        { label: "Recovered",         textClass: "text-green-700",  bgClass: "bg-green-50"  },
-  FROZEN_DISPUTE:  { label: "Frozen",            textClass: "text-red-700",    bgClass: "bg-red-50"    },
-  ESCALATED_HUMAN: { label: "Escalated",         textClass: "text-red-700",    bgClass: "bg-red-50"    },
+  TRIGGERED:                { label: "Triggered",        textClass: "text-blue-700",   bgClass: "bg-blue-50"   },
+  DIAGNOSED:                { label: "Diagnosed",        textClass: "text-blue-700",   bgClass: "bg-blue-50"   },
+  REMINDER_SENT:            { label: "Reminder Sent",    textClass: "text-blue-700",   bgClass: "bg-blue-50"   },
+  SPLIT_OFFERED:            { label: "Split Plan Offered", textClass: "text-amber-800", bgClass: "bg-amber-50" },
+  SPLIT_FIRST_HALF_PENDING: { label: "1st Half Pending",   textClass: "text-amber-800", bgClass: "bg-amber-100 border border-amber-300" },
+  LINK_SENT:                { label: "Link Sent",         textClass: "text-blue-700",   bgClass: "bg-blue-50"   },
+  PTP_ACTIVE:               { label: "PTP Active",        textClass: "text-amber-700",  bgClass: "bg-amber-50"  },
+  TIER_1_DISCOUNT:          { label: "Tier 1 Discount",  textClass: "text-purple-700", bgClass: "bg-purple-50" },
+  TIER_2_DISCOUNT:          { label: "Tier 2 Discount",  textClass: "text-purple-700", bgClass: "bg-purple-50" },
+  TIER_3_FLOOR:             { label: "Tier 3 Floor",      textClass: "text-purple-700", bgClass: "bg-purple-50" },
+  RESOLVED:                 { label: "Recovered",         textClass: "text-green-700",  bgClass: "bg-green-50"  },
+  FROZEN_DISPUTE:           { label: "Frozen",            textClass: "text-red-700",    bgClass: "bg-red-50"    },
+  ESCALATED_HUMAN:          { label: "Escalated",         textClass: "text-red-700",    bgClass: "bg-red-50"    },
 };
 
 const FSM_STEPS = ["Triggered", "Reminder Sent", "Voice Call", "PTP / Discount", "Resolved"];
@@ -160,6 +162,16 @@ function getNextActionBadge(inv: Invoice, isInQueue: boolean, now: number): {
       isTerminal: false,
     };
   }
+  if (currentState === "SPLIT_FIRST_HALF_PENDING" || currentState === "SPLIT_OFFERED") {
+    const halfVal = Math.round((parseFloat(inv.amount_inr) || 0) / 2);
+    return {
+      icon: "⏳",
+      label: `1st Half Due (₹${halfVal.toLocaleString("en-IN")})`,
+      subLabel: `⏳ Waiting for 1st Half Payment (50%) in ${remaining}`,
+      isSkippable: true,
+      isTerminal: false,
+    };
+  }
   if (currentState === "LINK_SENT") {
     return {
       icon: "✓",
@@ -172,10 +184,15 @@ function getNextActionBadge(inv: Invoice, isInQueue: boolean, now: number): {
   if (currentState === "PTP_ACTIVE") {
     const ptpDeadline = latest?.ptp_deadline;
     const deadlineStr = ptpDeadline ? new Date(ptpDeadline).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "pending";
+    const isHalfRecorded = (inv.recovery_events || []).some(
+      (e) => e.log_message?.includes("50% Partial Payment") || e.log_message?.includes("Half") || e.log_message?.includes("50% remaining")
+    );
     return {
       icon: "⏸️",
-      label: "PTP Active",
-      subLabel: `Paused until ${deadlineStr} (${remaining})`,
+      label: isHalfRecorded ? "2nd Half PTP (3 Days)" : "PTP Active",
+      subLabel: isHalfRecorded
+        ? `2nd Half PTP active until ${deadlineStr} (${remaining})`
+        : `Paused until ${deadlineStr} (${remaining})`,
       isSkippable: true,
       isTerminal: false,
     };
@@ -183,7 +200,6 @@ function getNextActionBadge(inv: Invoice, isInQueue: boolean, now: number): {
   if (currentState.startsWith("TIER_")) {
     const discRatio = latest?.discount_offered ? parseFloat(latest.discount_offered) : 0;
     const netAmt = parseFloat(inv.amount_inr) * (1 - discRatio);
-    const tierName = currentState === "TIER_1_DISCOUNT" ? "Tier 1" : currentState === "TIER_2_DISCOUNT" ? "Tier 2" : "Tier 3 Floor";
     return {
       icon: "⏳",
       label: `Awaiting Payment (₹${Math.round(netAmt).toLocaleString("en-IN")})`,
@@ -500,6 +516,8 @@ export default function OperationsConsole() {
         next.delete(inv.id);
         return next;
       });
+      const currentRec = parseFloat(inv.recovered_amount_inr || "0") || 0;
+      const newRec = (currentRec + grossVal).toFixed(2);
       // Instantly mark resolved locally
       setInvoices((prev) =>
         prev.map((item) =>
@@ -507,6 +525,7 @@ export default function OperationsConsole() {
             ? {
                 ...item,
                 amount_inr: "0.00",
+                recovered_amount_inr: newRec,
                 status: "RESOLVED",
                 next_action_due_at: null,
                 call_pending: false,
@@ -530,6 +549,8 @@ export default function OperationsConsole() {
     } else {
       setHalfSettledInvoiceIds((prev) => new Set(prev).add(inv.id));
       const halfVal = (grossVal / 2).toFixed(2);
+      const currentRec = parseFloat(inv.recovered_amount_inr || "0") || 0;
+      const newRec = (currentRec + parseFloat(halfVal)).toFixed(2);
       const ptpDate = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
       // Instantly update remaining amount & PTP
       setInvoices((prev) =>
@@ -538,6 +559,7 @@ export default function OperationsConsole() {
             ? {
                 ...item,
                 amount_inr: halfVal,
+                recovered_amount_inr: newRec,
                 status: "UNPAID",
                 next_action_due_at: ptpDate,
                 call_pending: false,
@@ -801,47 +823,73 @@ export default function OperationsConsole() {
         ) : (
           <>
             {/* Top Grid: KPI Cards + Global Call Queue + Agent Activity */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-              {/* Left Column: 4 Compact KPI Cards */}
-              <div className="lg:col-span-2 grid grid-cols-2 gap-3">
-                {/* Card 1: Total at Risk */}
-                <div className="bg-white border border-zinc-200 rounded-md p-3.5">
-                  <div className="text-[11px] font-semibold tracking-wider text-zinc-500 uppercase">
-                    TOTAL AT RISK
-                  </div>
-                  <div className="text-2xl font-bold text-zinc-900 mt-1">
-                    {analytics ? fmtInr(analytics.total_at_risk_inr) : fmtInr(invoices.reduce((acc, i) => acc + parseFloat(i.amount_inr), 0))}
-                  </div>
-                  <div className="text-[11px] text-zinc-500 mt-1">
-                    {invoices.length} active recovery cases
-                  </div>
-                </div>
+            {(() => {
+              const activeUnpaidInvoices = invoices.filter(
+                (i) => i.status === "UNPAID" && !settledInvoiceIds.has(i.id)
+              );
+              const resolvedInvoices = invoices.filter(
+                (i) => i.status === "RESOLVED" || settledInvoiceIds.has(i.id)
+              );
+              const liveTotalAtRisk = activeUnpaidInvoices.reduce(
+                (acc, i) => acc + (parseFloat(i.amount_inr) || 0),
+                0
+              );
+              const liveTotalRecovered = invoices.reduce((acc, i) => {
+                let recovered = parseFloat((i as any).recovered_amount_inr || "0") || 0;
+                if ((i.status === "RESOLVED" || settledInvoiceIds.has(i.id)) && recovered === 0) {
+                  recovered = parseFloat(i.original_amount_inr || i.amount_inr || "0") || 0;
+                }
+                return acc + recovered;
+              }, 0);
 
-            {/* Card 2: Total Recovered */}
-            <div className="bg-white border border-zinc-200 rounded-md p-3.5">
-              <div className="text-[11px] font-semibold tracking-wider text-zinc-500 uppercase">
-                TOTAL RECOVERED
-              </div>
-              <div className="text-2xl font-bold text-green-700 mt-1">
-                {analytics ? fmtInr(analytics.total_recovered_inr) : "₹0"}
-              </div>
-              <div className="text-[11px] text-green-600 mt-1 font-medium">
-                {analytics ? `${analytics.recovery_rate_pct.toFixed(1)}% recovery rate` : "0% rate"} ({analytics?.resolved_count ?? 0} resolved)
-              </div>
-            </div>
+              const displayTotalAtRisk = analytics ? analytics.total_at_risk_inr : liveTotalAtRisk;
+              const displayTotalRecovered = analytics ? analytics.total_recovered_inr : liveTotalRecovered;
+              const displayTotalPool = displayTotalRecovered + displayTotalAtRisk;
+              const displayRecoveryRate = displayTotalPool > 0 ? (displayTotalRecovered / displayTotalPool) * 100 : 0;
+              const displayResolvedCount = analytics ? analytics.resolved_count : resolvedInvoices.length;
 
-            {/* Card 3: Margin Preserved */}
-            <div className="bg-white border border-zinc-200 rounded-md p-3.5">
-              <div className="text-[11px] font-semibold tracking-wider text-zinc-500 uppercase">
-                MARGIN PRESERVED
-              </div>
-              <div className="text-2xl font-bold text-zinc-900 mt-1">
-                {analytics ? fmtInr(analytics.margin_preserved_inr) : "₹0"}
-              </div>
-              <div className="text-[11px] text-zinc-500 mt-1">
-                Retained via policy ceiling rules
-              </div>
-            </div>
+              return (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                  {/* Left Column: 4 Compact KPI Cards */}
+                  <div className="lg:col-span-2 grid grid-cols-2 gap-3">
+                    {/* Card 1: Total at Risk */}
+                    <div className="bg-white border border-zinc-200 rounded-md p-3.5">
+                      <div className="text-[11px] font-semibold tracking-wider text-zinc-500 uppercase">
+                        TOTAL AT RISK
+                      </div>
+                      <div className="text-2xl font-bold text-zinc-900 mt-1">
+                        {fmtInr(displayTotalAtRisk)}
+                      </div>
+                      <div className="text-[11px] text-zinc-500 mt-1">
+                        {activeUnpaidInvoices.length} active recovery cases
+                      </div>
+                    </div>
+
+                    {/* Card 2: Total Recovered */}
+                    <div className="bg-white border border-zinc-200 rounded-md p-3.5">
+                      <div className="text-[11px] font-semibold tracking-wider text-zinc-500 uppercase">
+                        TOTAL RECOVERED
+                      </div>
+                      <div className="text-2xl font-bold text-green-700 mt-1">
+                        {fmtInr(displayTotalRecovered)}
+                      </div>
+                      <div className="text-[11px] text-green-600 mt-1 font-medium">
+                        {displayRecoveryRate.toFixed(1)}% recovery rate ({displayResolvedCount} resolved)
+                      </div>
+                    </div>
+
+                    {/* Card 3: Margin Preserved */}
+                    <div className="bg-white border border-zinc-200 rounded-md p-3.5">
+                      <div className="text-[11px] font-semibold tracking-wider text-zinc-500 uppercase">
+                        MARGIN PRESERVED
+                      </div>
+                      <div className="text-2xl font-bold text-zinc-900 mt-1">
+                        {analytics ? fmtInr(analytics.margin_preserved_inr) : "₹0"}
+                      </div>
+                      <div className="text-[11px] text-zinc-500 mt-1">
+                        Retained via policy ceiling rules
+                      </div>
+                    </div>
 
             {/* Card 4: Global Call Queue Status Card */}
             <div className="bg-white border border-zinc-200 rounded-md p-3.5 text-xs flex flex-col justify-between">
@@ -939,6 +987,8 @@ export default function OperationsConsole() {
             )}
           </div>
         </div>
+      );
+    })()}
 
         {/* Case List Header & Filters */}
         <div className="bg-white border border-zinc-200 rounded-md overflow-hidden">

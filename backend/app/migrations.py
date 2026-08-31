@@ -32,7 +32,6 @@ async def run_migrations() -> None:
         await conn.run_sync(Base.metadata.create_all)
 
         # ── Safe column additions for existing tables ──────────────────────────
-        # These are idempotent — safe to run on every startup.
         await conn.execute(text(
             "ALTER TABLE invoices "
             "ADD COLUMN IF NOT EXISTS next_action_due_at TIMESTAMPTZ;"
@@ -40,6 +39,14 @@ async def run_migrations() -> None:
         await conn.execute(text(
             "ALTER TABLE invoices "
             "ADD COLUMN IF NOT EXISTS call_pending BOOLEAN NOT NULL DEFAULT FALSE;"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE invoices "
+            "ADD COLUMN IF NOT EXISTS original_amount_inr NUMERIC(12, 2);"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE invoices "
+            "ADD COLUMN IF NOT EXISTS recovered_amount_inr NUMERIC(12, 2) NOT NULL DEFAULT 0.00;"
         ))
 
     logger.info("✅  Migrations complete — all tables and columns ensured on Supabase PostgreSQL.")

@@ -184,6 +184,28 @@ async def process_expired_deadlines() -> dict:
                         calls_queued.append(str(inv.id))
                         logger.info("📞 Follow-up call queued for invoice %s (%s)", inv.id, current)
 
+                    elif current in (State.SPLIT_FIRST_HALF_PENDING, State.SPLIT_OFFERED):
+                        # ── 1-hour split payment window expired without 1st half payment — queue follow-up call ──
+                        inv.call_pending = True
+                        inv.next_action_due_at = None
+                        from app.models import RecoveryEvent
+                        import uuid as _uuid
+                        evt = RecoveryEvent(
+                            id=_uuid.uuid4(),
+                            invoice_id=inv.id,
+                            current_state=current,
+                            discount_offered=0.0,
+                            log_message=(
+                                "[AUTO-SCHEDULER] 1-hour Split Payment (1st 50%) window expired without payment. "
+                                "Follow-up voice negotiation call queued."
+                            ),
+                            timestamp=now,
+                        )
+                        session.add(evt)
+                        inv.recovery_events.append(evt)
+                        calls_queued.append(str(inv.id))
+                        logger.info("📞 Follow-up call queued for 1-hour split payment breach on invoice %s", inv.id)
+
                     elif current == State.TIER_3_FLOOR:
                         # ── Final floor payment window expired — escalate to human ──────
                         last_disc = float(inv.recovery_events[-1].discount_offered) if inv.recovery_events else 0.0

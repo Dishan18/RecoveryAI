@@ -736,7 +736,7 @@ async def voice_transcribe_and_reply(
     inv.call_pending = False
     if turn_decision.resulting_state in State.TERMINAL_STATES:
         inv.next_action_due_at = None
-    elif turn_decision.resulting_state == State.PTP_ACTIVE and turn_decision.ptp_date:
+    elif turn_decision.resulting_state in (State.PTP_ACTIVE, State.SPLIT_FIRST_HALF_PENDING) and turn_decision.ptp_date:
         inv.next_action_due_at = turn_decision.ptp_date
     else:
         inv.next_action_due_at = datetime.now(timezone.utc) + timedelta(minutes=10)
@@ -816,6 +816,13 @@ async def voice_call_greeting(
         greeting_text = (
             f"Namaste {inv.customer.name} ji! Aapka pichla payment promise breach ho gaya hai. "
             f"Policy ke mutabik ab aur time nahi diya ja sakta. Kripya 1 ghante ke andar payment complete karein ya case escalate kiya jaye?"
+        )
+    elif current_state in (State.SPLIT_FIRST_HALF_PENDING, State.SPLIT_OFFERED):
+        half_amt = float(inv.amount_inr) / 2.0
+        greeting_text = (
+            f"Namaste {inv.customer.name} ji! Main {inv.merchant.name} se bol raha hoon. "
+            f"Humne 1 ghanta pehle 50% payment ke liye discuss kiya tha, par abhi tak aapka ₹{half_amt:,.0f} ka payment receive nahi hua hai. "
+            "Kya koi technical issue aa rahi hai ya aap abhi complete kar rahe hain?"
         )
     elif current_state == State.TIER_1_DISCOUNT:
         res1 = calculator.calculate(cap, months, 1, gross)
@@ -900,26 +907,37 @@ async def get_analytics_summary(
     disputed_count = 0
 
     for inv in invoices:
-        amt = float(inv.amount_inr)
-        total_at_risk += amt
+        current_remaining = float(inv.amount_inr)
+        recovered_amt = float(getattr(inv, "recovered_amount_inr", 0.0) or 0.0)
+        orig_amt = float(getattr(inv, "original_amount_inr", 0.0) or 0.0) or (current_remaining + recovered_amt)
+
+        # Active unpaid amounts are at risk
+        if inv.status == "UNPAID":
+            total_at_risk += current_remaining
+
+        # Total recovered includes both full and partial payments
+        if inv.status == "RESOLVED" and recovered_amt == 0.0:
+            total_recovered += orig_amt
+        else:
+            total_recovered += recovered_amt
+
         latest = inv.recovery_events[-1] if inv.recovery_events else None
         state = latest.current_state if latest else "TRIGGERED"
         disc_offered = float(latest.discount_offered) if latest else 0.0
 
         if inv.status == "RESOLVED" or state == "RESOLVED":
             resolved_count += 1
-            net_paid = amt * (1.0 - disc_offered)
-            total_recovered += net_paid
-            cap = float(inv.merchant.default_discount_cap)
-            margin_preserved += amt * (cap - disc_offered)
-        elif state == "PTP_ACTIVE":
+            cap = float(inv.merchant.default_discount_cap) if inv.merchant else 0.10
+            margin_preserved += orig_amt * max(0.0, cap - disc_offered)
+        elif state in (State.PTP_ACTIVE, State.SPLIT_FIRST_HALF_PENDING):
             ptp_count += 1
-            active_ptp += amt
-        elif state == "FROZEN_DISPUTE" or inv.status == "DISPUTED":
+            active_ptp += current_remaining
+        elif state == State.FROZEN_DISPUTE or inv.status == "DISPUTED":
             disputed_count += 1
-            frozen_dispute += amt
+            frozen_dispute += current_remaining
 
-    recovery_rate = (total_recovered / total_at_risk * 100.0) if total_at_risk > 0 else 0.0
+    total_pool = total_recovered + total_at_risk
+    recovery_rate = (total_recovered / total_pool * 100.0) if total_pool > 0 else 0.0
 
     return AnalyticsSummaryResponse(
         total_at_risk_inr=round(total_at_risk, 2),
@@ -1006,13 +1024,23 @@ async def get_analytics_overview(
     }
 
     for inv in live_invoices:
-        amt = float(inv.amount_inr)
-        live_at_risk += amt
+        current_remaining = float(inv.amount_inr)
+        recovered_amt = float(getattr(inv, "recovered_amount_inr", 0.0) or 0.0)
+        orig_amt = float(getattr(inv, "original_amount_inr", 0.0) or 0.0) or (current_remaining + recovered_amt)
+
+        if inv.status == "UNPAID":
+            live_at_risk += current_remaining
+
+        if inv.status == "RESOLVED" and recovered_amt == 0.0:
+            live_recovered += orig_amt
+        else:
+            live_recovered += recovered_amt
+
         raw_reason = str(inv.failure_reason or "GATEWAY_TIMEOUT").strip()
         if raw_reason not in live_reason_stats:
             live_reason_stats[raw_reason] = {"total": 0, "resolved": 0, "amount": 0.0}
         live_reason_stats[raw_reason]["total"] += 1
-        live_reason_stats[raw_reason]["amount"] += amt
+        live_reason_stats[raw_reason]["amount"] += orig_amt
 
         latest_evt = inv.recovery_events[-1] if inv.recovery_events else None
         state = latest_evt.current_state if latest_evt else "TRIGGERED"
@@ -1020,9 +1048,9 @@ async def get_analytics_overview(
 
         # Track funnel
         events = inv.recovery_events or []
-        has_rem = any(e.current_state in ("REMINDER_SENT", "LINK_SENT", "PTP_ACTIVE", "TIER_1_DISCOUNT", "TIER_2_DISCOUNT", "TIER_3_FLOOR", "RESOLVED") for e in events)
-        has_call = any(e.current_state in ("TIER_1_DISCOUNT", "TIER_2_DISCOUNT", "TIER_3_FLOOR", "PTP_ACTIVE", "ESCALATED_HUMAN") or "VOICE CALL" in (e.log_message or "") for e in events) or inv.call_pending
-        has_ptp_conc = any(e.current_state in ("PTP_ACTIVE", "TIER_1_DISCOUNT", "TIER_2_DISCOUNT", "TIER_3_FLOOR", "LINK_SENT") for e in events)
+        has_rem = any(e.current_state in ("REMINDER_SENT", "LINK_SENT", "PTP_ACTIVE", "SPLIT_FIRST_HALF_PENDING", "TIER_1_DISCOUNT", "TIER_2_DISCOUNT", "TIER_3_FLOOR", "RESOLVED") for e in events)
+        has_call = any(e.current_state in ("TIER_1_DISCOUNT", "TIER_2_DISCOUNT", "TIER_3_FLOOR", "PTP_ACTIVE", "SPLIT_OFFERED", "SPLIT_FIRST_HALF_PENDING", "ESCALATED_HUMAN") or "VOICE CALL" in (e.log_message or "") for e in events) or inv.call_pending
+        has_ptp_conc = any(e.current_state in ("PTP_ACTIVE", "SPLIT_FIRST_HALF_PENDING", "TIER_1_DISCOUNT", "TIER_2_DISCOUNT", "TIER_3_FLOOR", "LINK_SENT") for e in events)
         is_res = inv.status == "RESOLVED" or state == "RESOLVED"
 
         if has_rem:
@@ -1033,25 +1061,24 @@ async def get_analytics_overview(
             live_ptp_or_concessions += 1
         if is_res:
             live_resolved += 1
-            live_recovered += amt
-            live_discounts += amt * disc
+            live_discounts += orig_amt * disc
             live_reason_stats[raw_reason]["resolved"] += 1
 
             cap = float(inv.merchant.default_discount_cap) if inv.merchant else 0.10
-            live_margin_saved += amt * max(0.0, cap - disc)
+            live_margin_saved += orig_amt * max(0.0, cap - disc)
 
             if disc == 0.0:
                 live_concessions["Full Price (0%)"]["cases"] += 1
-                live_concessions["Full Price (0%)"]["volume"] += amt
+                live_concessions["Full Price (0%)"]["volume"] += orig_amt
             elif disc <= 0.05:
                 live_concessions["Tier 1 (5%)"]["cases"] += 1
-                live_concessions["Tier 1 (5%)"]["volume"] += amt * (1.0 - disc)
+                live_concessions["Tier 1 (5%)"]["volume"] += orig_amt * (1.0 - disc)
             elif disc <= 0.08:
                 live_concessions["Tier 2 (8%)"]["cases"] += 1
-                live_concessions["Tier 2 (8%)"]["volume"] += amt * (1.0 - disc)
+                live_concessions["Tier 2 (8%)"]["volume"] += orig_amt * (1.0 - disc)
             else:
                 live_concessions["Tier 3 (10%)"]["cases"] += 1
-                live_concessions["Tier 3 (10%)"]["volume"] += amt * (1.0 - disc)
+                live_concessions["Tier 3 (10%)"]["volume"] += orig_amt * (1.0 - disc)
 
     # Blend baseline + live
     total_cases = SYNTHETIC_BASELINE["total_cases"] + live_total_cases
@@ -1579,15 +1606,20 @@ async def record_payment_endpoint(
     sm = StateMachine(inv, db)
     prev_state = sm.current_state
 
-    original_amt = Decimal(str(inv.amount_inr))
+    current_bal = Decimal(str(inv.amount_inr))
+    current_recovered = Decimal(str(getattr(inv, "recovered_amount_inr", 0) or 0))
+    if not inv.original_amount_inr:
+        inv.original_amount_inr = current_bal + current_recovered
+
     now = datetime.now(timezone.utc)
     notes = payload.notes or ""
 
     if payload.payment_type == "FULL":
-        amount_paid = original_amt
+        amount_paid = current_bal
         remaining = Decimal("0.00")
         target_state = State.RESOLVED
         ptp_deadline = None
+        inv.recovered_amount_inr = current_recovered + amount_paid
         inv.amount_inr = remaining
         inv.status = "RESOLVED"
         inv.call_pending = False
@@ -1613,10 +1645,11 @@ async def record_payment_endpoint(
 
     else:
         # HALF (50%) Payment
-        amount_paid = (original_amt / Decimal("2")).quantize(Decimal("0.01"))
-        remaining = (original_amt - amount_paid).quantize(Decimal("0.01"))
+        amount_paid = (current_bal / Decimal("2")).quantize(Decimal("0.01"))
+        remaining = (current_bal - amount_paid).quantize(Decimal("0.01"))
         target_state = State.PTP_ACTIVE
         ptp_deadline = now + timedelta(days=3)
+        inv.recovered_amount_inr = current_recovered + amount_paid
         inv.amount_inr = remaining
         inv.status = "UNPAID"
         inv.ptp_date = ptp_deadline

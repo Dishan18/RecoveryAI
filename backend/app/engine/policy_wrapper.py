@@ -172,21 +172,35 @@ async def execute_policy_turn(
     # ─────────────────────────────────────────────────────────────────────────
     # 1. PAY_NOW / Split Plan Acceptance — Customer indicates immediate payment
     # ─────────────────────────────────────────────────────────────────────────
+    # ─────────────────────────────────────────────────────────────────────────
+    # 1. PAY_NOW / Split Plan Acceptance — Customer indicates immediate payment
+    # ─────────────────────────────────────────────────────────────────────────
     if intent == "PAY_NOW":
         if previous_state == State.SPLIT_OFFERED:
-            target_ptp = datetime.now(timezone.utc) + timedelta(days=3)
-            resolved_ptp_date = target_ptp
-            invoice.ptp_date = target_ptp
+            # Debtor accepts split plan: 1st 50% due in 1 hour; remaining 50% in 3 days upon manual half payment
+            target_due = datetime.now(timezone.utc) + timedelta(hours=1)
+            resolved_ptp_date = target_due
+            invoice.next_action_due_at = target_due
+            invoice.call_pending = False
             half_amt = (gross_amount / Decimal("2")).quantize(Decimal("0.01"))
-            if sm.can_transition(State.PTP_ACTIVE):
-                resulting_state = State.PTP_ACTIVE
+            if sm.can_transition(State.SPLIT_FIRST_HALF_PENDING):
+                resulting_state = State.SPLIT_FIRST_HALF_PENDING
                 await sm.transition(
-                    target_state=State.PTP_ACTIVE,
+                    target_state=State.SPLIT_FIRST_HALF_PENDING,
                     discount_offered=0.0,
-                    ptp_deadline=target_ptp,
-                    log_message=f"Debtor accepted Split Payment Plan. First 50% (₹{half_amt:,.0f}) due now, remaining 50% (₹{half_amt:,.0f}) committed by {target_ptp.strftime('%d %b %Y')}.",
+                    ptp_deadline=target_due,
+                    log_message=f"Debtor accepted Split Payment Plan. First 50% (₹{half_amt:,.0f}) due in 1 hour ({target_due.strftime('%H:%M')}). Remaining 50% scheduled for 3 days PTP.",
                 )
-            action_executed = f"Debtor accepted Split Payment Plan (50% ₹{half_amt:,.0f} now, 50% in 3 days). Payment link dispatched."
+            action_executed = f"Debtor accepted Split Payment Plan (1st 50% ₹{half_amt:,.0f} due in 1 hour). Awaiting 1st half payment."
+            trigger_auto_close = True
+        elif previous_state == State.SPLIT_FIRST_HALF_PENDING:
+            # Debtor re-commits on 1-hour follow-up call
+            target_due = datetime.now(timezone.utc) + timedelta(hours=1)
+            resolved_ptp_date = target_due
+            invoice.next_action_due_at = target_due
+            invoice.call_pending = False
+            resulting_state = State.SPLIT_FIRST_HALF_PENDING
+            action_executed = "Debtor promised immediate payment on 1-hour follow up. Direct link dispatched."
             trigger_auto_close = True
         else:
             if sm.can_transition(State.LINK_SENT):
@@ -204,19 +218,31 @@ async def execute_policy_turn(
     # ─────────────────────────────────────────────────────────────────────────
     elif intent == "PROMISE_TO_PAY":
         if previous_state == State.SPLIT_OFFERED:
-            target_ptp = datetime.now(timezone.utc) + timedelta(days=3)
-            resolved_ptp_date = target_ptp
-            invoice.ptp_date = target_ptp
+            target_due = datetime.now(timezone.utc) + timedelta(hours=1)
+            resolved_ptp_date = target_due
+            invoice.next_action_due_at = target_due
+            invoice.call_pending = False
             half_amt = (gross_amount / Decimal("2")).quantize(Decimal("0.01"))
-            if sm.can_transition(State.PTP_ACTIVE):
-                resulting_state = State.PTP_ACTIVE
+            if sm.can_transition(State.SPLIT_FIRST_HALF_PENDING):
+                resulting_state = State.SPLIT_FIRST_HALF_PENDING
                 await sm.transition(
-                    target_state=State.PTP_ACTIVE,
+                    target_state=State.SPLIT_FIRST_HALF_PENDING,
                     discount_offered=0.0,
-                    ptp_deadline=target_ptp,
-                    log_message=f"Debtor accepted Split Payment Plan. First 50% (₹{half_amt:,.0f}) due now, remaining 50% (₹{half_amt:,.0f}) committed by {target_ptp.strftime('%d %b %Y')}.",
+                    ptp_deadline=target_due,
+                    log_message=f"Debtor accepted Split Payment Plan. First 50% (₹{half_amt:,.0f}) due in 1 hour ({target_due.strftime('%H:%M')}). Remaining 50% scheduled for 3 days PTP.",
                 )
-            action_executed = f"Debtor accepted Split Payment Plan (50% ₹{half_amt:,.0f} now, 50% in 3 days). Payment link dispatched."
+            action_executed = f"Debtor accepted Split Payment Plan (1st 50% ₹{half_amt:,.0f} due in 1 hour). Awaiting 1st half payment."
+            trigger_auto_close = True
+        elif previous_state == State.SPLIT_FIRST_HALF_PENDING:
+            # Debtor refuses/stalls on follow up
+            resulting_state = State.ESCALATED_HUMAN
+            invoice.call_pending = False
+            if sm.can_transition(State.ESCALATED_HUMAN):
+                await sm.transition(
+                    target_state=State.ESCALATED_HUMAN,
+                    log_message="Debtor defaulted on 1-hour split commitment and refused follow-up. Escalated to senior human officer.",
+                )
+            action_executed = "Debtor defaulted on 1-hour split commitment and refused follow-up. Escalated to senior human officer."
             trigger_auto_close = True
         else:
             target_ptp = parse_relative_ptp_date(intent_data.ptp_date_extracted)
@@ -241,137 +267,160 @@ async def execute_policy_turn(
     # 3. REQUEST_DISCOUNT — Customer asks for concession
     # ─────────────────────────────────────────────────────────────────────────
     elif intent == "REQUEST_DISCOUNT":
-        # Next tier to evaluate
-        next_tier = min(current_tier + 1, 3)
-        if next_tier == 0:
-            next_tier = 1
-
-        calc_res = calculator.calculate(
-            merchant_cap=merchant_cap,
-            consecutive_discount_months=consecutive_months,
-            tier=next_tier,
-            gross_amount_inr=gross_amount,
-        )
-
-        if calc_res.is_accessible:
-            target_state = TIER_STATE_NAMES.get(next_tier, State.TIER_1_DISCOUNT)
-            authorized_discount_rate = calc_res.discount_rate
-            authorized_net_amount = calc_res.net_payable_inr
-
-            if sm.can_transition(target_state):
-                resulting_state = target_state
-                await sm.transition(
-                    target_state=target_state,
-                    discount_offered=float(authorized_discount_rate),
-                    log_message=f"Customer requested concession (stated {intent_data.customer_stated_discount_pct or 'custom'}%) -> Policy Engine authorized Tier {next_tier} ({calc_res.discount_pct})",
-                )
-            action_executed = f"Policy Engine authorized Tier {next_tier} concession ({calc_res.discount_pct}). Net payable: ₹{authorized_net_amount:,.0f}."
-        else:
-            action_executed = f"Concession request blocked by Anti-Gaming Policy ({calc_res.audit_reason}). Net payable: ₹{gross_amount:,.0f}."
-
-    # ─────────────────────────────────────────────────────────────────────────
-    # 4. REFUSAL — Negotiation refusal ladder with Margin-Preserving Split Offer
-    # ─────────────────────────────────────────────────────────────────────────
-    elif intent == "REFUSAL":
-        has_offered_split = (previous_state == State.SPLIT_OFFERED) or any(
-            e.current_state == State.SPLIT_OFFERED for e in invoice.recovery_events
-        )
-
-        if current_tier == 0 and not has_offered_split:
-            # ── 1st Refusal: Offer Split Payment Plan (50% now, 50% in 3 days) ───
-            half_amt = (gross_amount / Decimal("2")).quantize(Decimal("0.01"))
-            resulting_state = State.SPLIT_OFFERED
-            if sm.can_transition(State.SPLIT_OFFERED):
-                await sm.transition(
-                    target_state=State.SPLIT_OFFERED,
-                    discount_offered=0.0,
-                    log_message=f"Refusal at full amount -> Offered Split Payment Plan (50% ₹{half_amt:,.0f} immediate, 50% ₹{half_amt:,.0f} in 3 days) to preserve margin.",
-                )
-            action_executed = f"Refused full payment -> Offered Split Payment Plan (50% ₹{half_amt:,.0f} immediate, 50% in 3 days) to preserve margin."
-
-        elif current_tier == 0 and has_offered_split:
-            # ── 2nd Refusal (Rejected Split): Proceed to Tier 1 Discount ─────────
-            calc_res = calculator.calculate(merchant_cap, consecutive_months, 1, gross_amount)
-            if calc_res.is_accessible and sm.can_transition(State.TIER_1_DISCOUNT):
-                authorized_discount_rate = calc_res.discount_rate
-                authorized_net_amount = calc_res.net_payable_inr
-                resulting_state = State.TIER_1_DISCOUNT
-                await sm.transition(
-                    target_state=State.TIER_1_DISCOUNT,
-                    discount_offered=float(authorized_discount_rate),
-                    log_message=f"Refusal of Split Payment Plan -> Offered Tier 1 ({calc_res.discount_pct})",
-                )
-                action_executed = f"Refused split payment plan -> Offered Tier 1 concession ({calc_res.discount_pct})."
-            else:
-                resulting_state = State.ESCALATED_HUMAN
-                invoice.call_pending = False
-                if sm.can_transition(State.ESCALATED_HUMAN):
-                    await sm.transition(
-                        target_state=State.ESCALATED_HUMAN,
-                        log_message=f"Refusal & concessions blocked by policy -> Escalated to human",
-                    )
-                action_executed = "Concessions blocked by policy -> Escalated to senior financial officer."
-                trigger_auto_close = True
-
-        elif current_tier == 1:
-            # Refused Tier 1 -> Try Tier 2
-            calc_res = calculator.calculate(merchant_cap, consecutive_months, 2, gross_amount)
-            if calc_res.is_accessible and sm.can_transition(State.TIER_2_DISCOUNT):
-                authorized_discount_rate = calc_res.discount_rate
-                authorized_net_amount = calc_res.net_payable_inr
-                resulting_state = State.TIER_2_DISCOUNT
-                await sm.transition(
-                    target_state=State.TIER_2_DISCOUNT,
-                    discount_offered=float(authorized_discount_rate),
-                    log_message=f"Refusal at Tier 1 -> Offered Tier 2 ({calc_res.discount_pct})",
-                )
-                action_executed = f"Refused Tier 1 -> Offered Tier 2 concession ({calc_res.discount_pct})."
-            else:
-                resulting_state = State.ESCALATED_HUMAN
-                invoice.call_pending = False
-                if sm.can_transition(State.ESCALATED_HUMAN):
-                    await sm.transition(
-                        target_state=State.ESCALATED_HUMAN,
-                        log_message="Refusal at Tier 1 and Tier 2 blocked by anti-gaming penalty -> Escalated",
-                    )
-                action_executed = "Tier 2 blocked by abuse history -> Escalated to senior financial officer."
-                trigger_auto_close = True
-
-        elif current_tier == 2:
-            # Refused Tier 2 -> Try Tier 3 Floor
-            calc_res = calculator.calculate(merchant_cap, consecutive_months, 3, gross_amount)
-            if calc_res.is_accessible and sm.can_transition(State.TIER_3_FLOOR):
-                authorized_discount_rate = calc_res.discount_rate
-                authorized_net_amount = calc_res.net_payable_inr
-                resulting_state = State.TIER_3_FLOOR
-                await sm.transition(
-                    target_state=State.TIER_3_FLOOR,
-                    discount_offered=float(authorized_discount_rate),
-                    log_message=f"Refusal at Tier 2 -> Offered Tier 3 Final Floor ({calc_res.discount_pct})",
-                )
-                action_executed = f"Refused Tier 2 -> Offered Tier 3 Final Floor ({calc_res.discount_pct})."
-            else:
-                resulting_state = State.ESCALATED_HUMAN
-                invoice.call_pending = False
-                if sm.can_transition(State.ESCALATED_HUMAN):
-                    await sm.transition(
-                        target_state=State.ESCALATED_HUMAN,
-                        log_message="Refusal at Tier 2 and Tier 3 blocked -> Escalated",
-                    )
-                action_executed = "Tier 3 blocked by abuse history -> Escalated to senior financial officer."
-                trigger_auto_close = True
-
-        elif current_tier >= 3:
-            # Final Floor Refusal -> Hard Escalation
+        if previous_state == State.SPLIT_FIRST_HALF_PENDING:
             resulting_state = State.ESCALATED_HUMAN
             invoice.call_pending = False
             if sm.can_transition(State.ESCALATED_HUMAN):
                 await sm.transition(
                     target_state=State.ESCALATED_HUMAN,
-                    log_message="Debtor refused Tier 3 Final Floor concession -> Escalated to senior recovery team",
+                    log_message="Debtor attempted further concession after 1-hour split commitment breach. Escalated to senior human officer.",
                 )
-            action_executed = "Refused final concession floor -> Escalated to senior financial officer."
+            action_executed = "Debtor defaulted on 1-hour split commitment and requested discount. Escalated to senior human officer."
             trigger_auto_close = True
+        else:
+            # Next tier to evaluate
+            next_tier = min(current_tier + 1, 3)
+            if next_tier == 0:
+                next_tier = 1
+
+            calc_res = calculator.calculate(
+                merchant_cap=merchant_cap,
+                consecutive_discount_months=consecutive_months,
+                tier=next_tier,
+                gross_amount_inr=gross_amount,
+            )
+
+            if calc_res.is_accessible:
+                target_state = TIER_STATE_NAMES.get(next_tier, State.TIER_1_DISCOUNT)
+                authorized_discount_rate = calc_res.discount_rate
+                authorized_net_amount = calc_res.net_payable_inr
+
+                if sm.can_transition(target_state):
+                    resulting_state = target_state
+                    await sm.transition(
+                        target_state=target_state,
+                        discount_offered=float(authorized_discount_rate),
+                        log_message=f"Customer requested concession (stated {intent_data.customer_stated_discount_pct or 'custom'}%) -> Policy Engine authorized Tier {next_tier} ({calc_res.discount_pct})",
+                    )
+                action_executed = f"Policy Engine authorized Tier {next_tier} concession ({calc_res.discount_pct}). Net payable: ₹{authorized_net_amount:,.0f}."
+            else:
+                action_executed = f"Concession request blocked by Anti-Gaming Policy ({calc_res.audit_reason}). Net payable: ₹{gross_amount:,.0f}."
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # 4. REFUSAL — Negotiation refusal ladder with Margin-Preserving Split Offer
+    # ─────────────────────────────────────────────────────────────────────────
+    elif intent == "REFUSAL":
+        if previous_state == State.SPLIT_FIRST_HALF_PENDING:
+            resulting_state = State.ESCALATED_HUMAN
+            invoice.call_pending = False
+            if sm.can_transition(State.ESCALATED_HUMAN):
+                await sm.transition(
+                    target_state=State.ESCALATED_HUMAN,
+                    log_message="Debtor defaulted on 1-hour split commitment and refused follow-up. Escalated to senior human officer.",
+                )
+            action_executed = "Debtor defaulted on 1-hour split commitment and refused follow-up. Escalated to senior human officer."
+            trigger_auto_close = True
+
+        else:
+            has_offered_split = (previous_state == State.SPLIT_OFFERED) or any(
+                e.current_state == State.SPLIT_OFFERED for e in invoice.recovery_events
+            )
+
+            if current_tier == 0 and not has_offered_split:
+                # ── 1st Refusal: Offer Split Payment Plan (50% now, 50% in 3 days) ───
+                half_amt = (gross_amount / Decimal("2")).quantize(Decimal("0.01"))
+                resulting_state = State.SPLIT_OFFERED
+                if sm.can_transition(State.SPLIT_OFFERED):
+                    await sm.transition(
+                        target_state=State.SPLIT_OFFERED,
+                        discount_offered=0.0,
+                        log_message=f"Refusal at full amount -> Offered Split Payment Plan (50% ₹{half_amt:,.0f} immediate, 50% ₹{half_amt:,.0f} in 3 days) to preserve margin.",
+                    )
+                action_executed = f"Refused full payment -> Offered Split Payment Plan (50% ₹{half_amt:,.0f} immediate, 50% in 3 days) to preserve margin."
+
+            elif current_tier == 0 and has_offered_split:
+                # ── 2nd Refusal (Rejected Split): Proceed to Tier 1 Discount ─────────
+                calc_res = calculator.calculate(merchant_cap, consecutive_months, 1, gross_amount)
+                if calc_res.is_accessible and sm.can_transition(State.TIER_1_DISCOUNT):
+                    authorized_discount_rate = calc_res.discount_rate
+                    authorized_net_amount = calc_res.net_payable_inr
+                    resulting_state = State.TIER_1_DISCOUNT
+                    await sm.transition(
+                        target_state=State.TIER_1_DISCOUNT,
+                        discount_offered=float(authorized_discount_rate),
+                        log_message=f"Refusal of Split Payment Plan -> Offered Tier 1 ({calc_res.discount_pct})",
+                    )
+                    action_executed = f"Refused split payment plan -> Offered Tier 1 concession ({calc_res.discount_pct})."
+                else:
+                    resulting_state = State.ESCALATED_HUMAN
+                    invoice.call_pending = False
+                    if sm.can_transition(State.ESCALATED_HUMAN):
+                        await sm.transition(
+                            target_state=State.ESCALATED_HUMAN,
+                            log_message="Refusal & concessions blocked by policy -> Escalated to human",
+                        )
+                    action_executed = "Concessions blocked by policy -> Escalated to senior financial officer."
+                    trigger_auto_close = True
+
+            elif current_tier == 1:
+                # Refused Tier 1 -> Try Tier 2
+                calc_res = calculator.calculate(merchant_cap, consecutive_months, 2, gross_amount)
+                if calc_res.is_accessible and sm.can_transition(State.TIER_2_DISCOUNT):
+                    authorized_discount_rate = calc_res.discount_rate
+                    authorized_net_amount = calc_res.net_payable_inr
+                    resulting_state = State.TIER_2_DISCOUNT
+                    await sm.transition(
+                        target_state=State.TIER_2_DISCOUNT,
+                        discount_offered=float(authorized_discount_rate),
+                        log_message=f"Refusal at Tier 1 -> Offered Tier 2 ({calc_res.discount_pct})",
+                    )
+                    action_executed = f"Refused Tier 1 -> Offered Tier 2 concession ({calc_res.discount_pct})."
+                else:
+                    resulting_state = State.ESCALATED_HUMAN
+                    invoice.call_pending = False
+                    if sm.can_transition(State.ESCALATED_HUMAN):
+                        await sm.transition(
+                            target_state=State.ESCALATED_HUMAN,
+                            log_message="Refusal at Tier 1 and Tier 2 blocked by anti-gaming penalty -> Escalated",
+                        )
+                    action_executed = "Tier 2 blocked by abuse history -> Escalated to senior financial officer."
+                    trigger_auto_close = True
+
+            elif current_tier == 2:
+                # Refused Tier 2 -> Try Tier 3 Floor
+                calc_res = calculator.calculate(merchant_cap, consecutive_months, 3, gross_amount)
+                if calc_res.is_accessible and sm.can_transition(State.TIER_3_FLOOR):
+                    authorized_discount_rate = calc_res.discount_rate
+                    authorized_net_amount = calc_res.net_payable_inr
+                    resulting_state = State.TIER_3_FLOOR
+                    await sm.transition(
+                        target_state=State.TIER_3_FLOOR,
+                        discount_offered=float(authorized_discount_rate),
+                        log_message=f"Refusal at Tier 2 -> Offered Tier 3 Final Floor ({calc_res.discount_pct})",
+                    )
+                    action_executed = f"Refused Tier 2 -> Offered Tier 3 Final Floor ({calc_res.discount_pct})."
+                else:
+                    resulting_state = State.ESCALATED_HUMAN
+                    invoice.call_pending = False
+                    if sm.can_transition(State.ESCALATED_HUMAN):
+                        await sm.transition(
+                            target_state=State.ESCALATED_HUMAN,
+                            log_message="Refusal at Tier 2 and Tier 3 blocked -> Escalated",
+                        )
+                    action_executed = "Tier 3 blocked by abuse history -> Escalated to senior financial officer."
+                    trigger_auto_close = True
+
+            elif current_tier >= 3:
+                # Final Floor Refusal -> Hard Escalation
+                resulting_state = State.ESCALATED_HUMAN
+                invoice.call_pending = False
+                if sm.can_transition(State.ESCALATED_HUMAN):
+                    await sm.transition(
+                        target_state=State.ESCALATED_HUMAN,
+                        log_message="Debtor refused Tier 3 Final Floor concession -> Escalated to senior recovery team",
+                    )
+                action_executed = "Refused final concession floor -> Escalated to senior financial officer."
+                trigger_auto_close = True
 
     # ─────────────────────────────────────────────────────────────────────────
     # 5. DISPUTE — Immediate collection freeze

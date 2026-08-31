@@ -37,6 +37,8 @@ export interface RecoveryEvent {
 export interface Invoice {
   id: string;
   amount_inr: string;
+  original_amount_inr?: string | null;
+  recovered_amount_inr?: string | null;
   status: string;
   failure_reason: string | null;
   created_at: string;
