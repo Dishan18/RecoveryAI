@@ -327,12 +327,13 @@ export default function OperationsConsole() {
 
   const isInvoiceHalfSettled = (inv: Invoice) => {
     if (halfSettledInvoiceIds.has(inv.id)) return true;
+    const recVal = parseFloat(inv.recovered_amount_inr || "0");
+    if (recVal > 0 && inv.status === "UNPAID") return true;
     return (inv.recovery_events || []).some(
       (e) =>
-        e.log_message?.includes("50% Partial Payment") ||
-        e.log_message?.includes("MARK_HALF_SETTLED") ||
-        e.log_message?.includes("Half payment recorded") ||
-        e.log_message?.includes("First 50%")
+        e.log_message?.includes("50% Partial Payment Received") ||
+        e.log_message?.includes("50% partial payment") ||
+        e.log_message?.includes("MARK_HALF_SETTLED")
     );
   };
 
