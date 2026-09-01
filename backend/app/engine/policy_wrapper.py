@@ -85,11 +85,20 @@ def parse_relative_ptp_date(date_str: str | None, base_date: datetime | None = N
 
 def _is_requesting_discounted_split(raw: str, intent_data: DebtorIntentClassification) -> bool:
     """Check if debtor is asking for a discount on top of split payment."""
+    full_amount_indicators = [
+        "original amount", "ओरिजिनल", "full amount", "पूरा अमाउंट", "फुल अमाउंट", "फुल्ल",
+        "50% abhi", "50% baad", "पचास परसेंट अभी", "पचास परसेंट बाद",
+        "आधा अभी", "आधा बाद", "aadha abhi", "aadha baad",
+        "half abhi", "half baad", "half now", "half later",
+    ]
+    if any(w in raw for w in full_amount_indicators):
+        if any(w in raw for w in ["discount wala", "डिस्काउंट वाला", "discount mein", "डिस्काउंट में", "discount me", "डिस्काउंट मे"]):
+            return True
+        return False
+
     if intent_data.customer_stated_discount_pct is not None and intent_data.customer_stated_discount_pct > 0:
         return True
-    # If customer explicitly says original amount / full amount / just split
-    if any(w in raw for w in ["original amount", "ओरिजिनल", "full amount", "पूरा अमाउंट", "फुल्ल"]):
-        return False
+
     discount_words = [
         "discount", "डिस्काउंट", "डिस्काउंटेड", "chhoot", "छूट", "kam karo", "kam kar",
         "concession", "waiver", "reduce", "रियायत", "कम करो", "कम कर",

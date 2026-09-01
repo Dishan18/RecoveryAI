@@ -696,38 +696,48 @@ def _rule_based_fallback_classification(transcript: str) -> dict:
             "sentiment": "HOSTILE",
         }
 
+    # Check if raw transcript is describing full amount split or 50% now 50% later (NOT requesting discount)
+    is_explicit_full_split = any(w in raw for w in [
+        "फुल अमाउंट", "full amount", "ful amount", "पूरा अमाउंट", "ओरिजिनल", "original amount",
+        "पचास परसेंट अभी", "पचास परसेंट बाद", "50% abhi", "50% baad", "50% now", "50% later",
+        "आधा अभी", "आधा बाद", "aadha abhi", "aadha baad",
+    ]) and not any(w in raw for w in ["discount wala", "डिस्काउंट वाला", "discount mein", "डिस्काउंट में", "discount me", "डिस्काउंट मे"])
+
     # ── PRIORITY 3: REQUEST_DISCOUNT (before PTP and PAY_NOW) ────────────────
-    # Discount keywords and Hindi number words take precedence.
-    has_discount_kw = any(w in raw for w in [
-        "discount", "डिस्काउंट", "chhoot", "छूट", "kam karo", "kam kar", "kam ho",
-        "concession", "waiver", "reduce", "रियायत", "कम करो", "कम कर",
-        "settlement", "discount chahiye", "डिस्काउंट चाहिए",
-        "discount de do", "thoda discount", "thoda kam", "kuch discount",
-        "discount milega", "paisa kam", "kam kardo", "less karo",
-        "percent off",
-    ])
-
-    # Try numeric regex: e.g. "50%", "25 percent", "50 प्रतिशत", "50 परसेंट"
+    # Discount keywords and Hindi number words take precedence, unless user is describing full-amount split terms.
+    has_discount_kw = False
     pct_val: float | None = None
-    pct_match = re.search(r"(\d+(\.\d+)?)\s*(%|percent|pratishat|प्रतिशत|परसेंट)?", raw)
-    if pct_match and pct_match.group(1):
-        try:
-            val = float(pct_match.group(1))
-            if 1.0 <= val <= 100.0 and (has_discount_kw or "%" in raw or "percent" in raw or "प्रतिशत" in raw or "परसेंट" in raw):
-                pct_val = val
-        except (ValueError, TypeError):
-            pass
 
-    # Try word numbers: e.g. "fifty percent", "फिफ्टी परसेंट", "पचास प्रतिशत"
-    if pct_val is None:
-        for word, num in _HINDI_NUM_WORDS.items():
-            if word in raw:
-                # Only assign if discount context is present
-                if has_discount_kw or "परसेंट" in raw or "प्रतिशत" in raw or "percent" in raw or "%" in raw:
-                    pct_val = num
-                    break
+    if not is_explicit_full_split:
+        has_discount_kw = any(w in raw for w in [
+            "discount", "डिस्काउंट", "chhoot", "छूट", "kam karo", "kam kar", "kam ho",
+            "concession", "waiver", "reduce", "रियायत", "कम करो", "कम कर",
+            "settlement", "discount chahiye", "डिस्काउंट चाहिए",
+            "discount de do", "thoda discount", "thoda kam", "kuch discount",
+            "discount milega", "paisa kam", "kam kardo", "less karo",
+            "percent off",
+        ])
 
-    if has_discount_kw or pct_val is not None:
+        # Try numeric regex: e.g. "50%", "25 percent", "50 प्रतिशत", "50 परसेंट"
+        pct_match = re.search(r"(\d+(\.\d+)?)\s*(%|percent|pratishat|प्रतिशत|परसेंट)?", raw)
+        if pct_match and pct_match.group(1):
+            try:
+                val = float(pct_match.group(1))
+                if 1.0 <= val <= 100.0 and (has_discount_kw or "%" in raw or "percent" in raw or "प्रतिशत" in raw or "परसेंट" in raw):
+                    pct_val = val
+            except (ValueError, TypeError):
+                pass
+
+        # Try word numbers: e.g. "fifty percent", "फिफ्टी परसेंट", "पचास प्रतिशत"
+        if pct_val is None:
+            for word, num in _HINDI_NUM_WORDS.items():
+                if word in raw:
+                    # Only assign if discount context is present
+                    if has_discount_kw or "परसेंट" in raw or "प्रतिशत" in raw or "percent" in raw or "%" in raw:
+                        pct_val = num
+                        break
+
+    if (has_discount_kw or pct_val is not None) and not is_explicit_full_split:
         return {
             "intent": "REQUEST_DISCOUNT",
             "confidence": 0.95 if pct_val is not None else 0.85,
