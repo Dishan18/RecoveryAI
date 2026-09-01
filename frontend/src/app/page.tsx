@@ -339,6 +339,7 @@ export default function OperationsConsole() {
 
   // Fast forward state
   const [fastForwarding, setFastForwarding] = useState(false);
+  const [isSeeding, setIsSeeding] = useState(false);
   const [skipWaitLoading, setSkipWaitLoading] = useState<Set<string>>(new Set());
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -350,6 +351,25 @@ export default function OperationsConsole() {
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 4000);
+  };
+
+  const handleSeedDatabase = async () => {
+    setIsSeeding(true);
+    try {
+      setSettledInvoiceIds(new Set());
+      setHalfSettledInvoiceIds(new Set());
+      setCallQueue([]);
+      setPaymentConfirmId(null);
+      setActiveOverrideMenuId(null);
+      setVoiceCallInvoice(null);
+      const res = await api.seed();
+      showToast(res.message || "Database reset & seeded fresh with 6 recovery cases");
+      await loadData(true);
+    } catch (e: unknown) {
+      showToast("Error: " + (e instanceof Error ? e.message : "Error"));
+    } finally {
+      setIsSeeding(false);
+    }
   };
 
   const loadData = useCallback(async (isRefresh = false) => {
@@ -736,24 +756,18 @@ export default function OperationsConsole() {
           {/* Right Action Bar */}
           <div className="flex items-center space-x-2">
             <button
-              onClick={async () => {
-                try {
-                  setSettledInvoiceIds(new Set());
-                  setHalfSettledInvoiceIds(new Set());
-                  setCallQueue([]);
-                  setPaymentConfirmId(null);
-                  setActiveOverrideMenuId(null);
-                  setVoiceCallInvoice(null);
-                  const res = await api.seed();
-                  showToast(res.message || "Database reset & seeded fresh with 6 recovery cases");
-                  await loadData(true);
-                } catch (e: unknown) {
-                  showToast("Error: " + (e instanceof Error ? e.message : "Error"));
-                }
-              }}
-              className="px-2.5 py-1.5 text-xs border border-zinc-300 rounded bg-white hover:bg-zinc-50 text-zinc-700 font-medium transition-colors"
+              onClick={handleSeedDatabase}
+              disabled={isSeeding}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs border border-zinc-300 rounded bg-white hover:bg-zinc-50 text-zinc-700 font-medium transition-colors disabled:opacity-50"
             >
-              Seed Database
+              {isSeeding ? (
+                <>
+                  <RefreshCw size={12} className="animate-spin text-zinc-500" />
+                  <span>Seeding...</span>
+                </>
+              ) : (
+                <span>Seed Database</span>
+              )}
             </button>
             <button
               onClick={handleFastForwardAll}
@@ -1045,19 +1059,18 @@ export default function OperationsConsole() {
               </div>
               <div className="flex items-center justify-center gap-2 pt-1">
                 <button
-                  onClick={async () => {
-                    try {
-                      setSettledInvoiceIds(new Set());
-                      const res = await api.seed();
-                      showToast(res.message || "Database seeded with 6 initial breach recovery cases");
-                      await loadData(true);
-                    } catch (e: unknown) {
-                      showToast("Error: " + (e instanceof Error ? e.message : "Error"));
-                    }
-                  }}
-                  className="px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded transition-colors"
+                  onClick={handleSeedDatabase}
+                  disabled={isSeeding}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded transition-colors disabled:opacity-50"
                 >
-                  Seed Database
+                  {isSeeding ? (
+                    <>
+                      <RefreshCw size={13} className="animate-spin" />
+                      <span>Seeding Database...</span>
+                    </>
+                  ) : (
+                    <span>Seed Database</span>
+                  )}
                 </button>
                 <button
                   onClick={() => setIsManualModalOpen(true)}
@@ -1531,6 +1544,38 @@ export default function OperationsConsole() {
               >
                 {overrideSubmitting ? "Applying..." : "Apply Override"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Global Full-Screen Seeding Loading Overlay */}
+      {isSeeding && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white border border-zinc-200 rounded-lg p-6 max-w-md w-full mx-4 shadow-xl space-y-4">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 rounded-full bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 flex-shrink-0">
+                <RefreshCw size={20} className="animate-spin" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-zinc-900">Seeding Portfolio Ledger</h3>
+                <p className="text-xs text-zinc-500">Initializing representative recovery cases...</p>
+              </div>
+            </div>
+
+            <div className="space-y-2 pt-2 border-t border-zinc-100 text-xs text-zinc-600">
+              <div className="flex items-center space-x-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
+                <span>Resetting transaction tables & customer accounts</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
+                <span>Provisioning failure scenarios (Mandate, Timeout, Dispute)</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
+                <span>Generating autonomous multi-channel dunning policies</span>
+              </div>
             </div>
           </div>
         </div>
