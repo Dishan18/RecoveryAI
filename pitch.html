@@ -559,7 +559,7 @@
     </div>
 
     <!-- ── SLIDE 2: The Solution ───────────────────────────────────────────── -->
-    <div class="slide" data-slide="2" data-notes="RecoveryAI is an autonomous voice and multi-rail debt recovery engine. It combines real-time conversational voice agents powered by Sarvam AI and Gemini 2.5 Flash with a strictly deterministic financial boundary. It diagnoses failed invoices, sends smart multi-rail links, and conducts natural multilingual negotiation calls in Hinglish, Hindi, and English to recover revenue empathetically without giving away unnecessary discounts.">
+    <div class="slide" data-slide="2" data-notes="RecoveryAI is an autonomous voice and multi-rail debt recovery engine. It combines real-time conversational voice agents powered by Sarvam AI and Gemini 3.6 Flash with a strictly deterministic financial boundary. It diagnoses failed invoices, sends smart multi-rail links, and conducts natural multilingual negotiation calls in Hinglish, Hindi, and English to recover revenue empathetically without giving away unnecessary discounts.">
       <div class="slide-eyebrow">02 • How We Solve It</div>
       <h1 class="slide-title">Autonomous Voice & Multi-Rail <span class="highlight">Debt Recovery Engine</span></h1>
       <p class="slide-subtitle">An intelligent credit officer that autonomously diagnoses, negotiates, and settles delinquent invoices with zero human intervention.</p>
@@ -589,7 +589,7 @@
     </div>
 
     <!-- ── SLIDE 3: Tech Stack Architecture ───────────────────────────────── -->
-    <div class="slide" data-slide="3" data-notes="Let's look at the tech stack. We chose a modern, high-concurrency async stack. The backend is built with FastAPI and Python 3.11, using SQLAlchemy 2.0 Async and asyncpg connected to PostgreSQL. The AI layer uses Gemini 2.5 Flash for non-authoritative Pydantic intent parsing, and Sarvam AI Saaras-v3 and Bulbul-v3 for Indian voice synthesis. The frontend is built on Next.js 16, React 19, and Tailwind CSS with real-time optimistic updates and audio streaming.">
+    <div class="slide" data-slide="3" data-notes="Let's look at the tech stack. We chose a modern, high-concurrency async stack. The backend is built with FastAPI and Python 3.11, using SQLAlchemy 2.0 Async and asyncpg connected to PostgreSQL. The AI layer uses Gemini 3.6 Flash for non-authoritative Pydantic intent parsing, and Sarvam AI Saaras-v3 and Bulbul-v3 for Indian voice synthesis. The frontend is built on Next.js 16, React 19, and Tailwind CSS with real-time optimistic updates and audio streaming.">
       <div class="slide-eyebrow">03 • Technology Stack</div>
       <h1 class="slide-title">End-to-End <span class="highlight">Production Technology Stack</span></h1>
       <p class="slide-subtitle">Engineered for sub-second latency, deterministic auditability, and enterprise-grade reliability.</p>
@@ -604,8 +604,8 @@
 
         <div class="card">
           <div class="badge-pill badge-purple" style="margin-bottom: 8px;">AI & Voice Stack</div>
-          <div class="card-title">Gemini 2.5 + Sarvam AI</div>
-          <p class="card-desc">Structured intent extraction via Gemini 2.5 Flash paired with Sarvam <code>saaras:v3</code> (STT) and <code>bulbul:v3</code> (Hinglish TTS).</p>
+          <div class="card-title">Gemini 3.6 + Sarvam AI</div>
+          <p class="card-desc">Structured intent extraction via Gemini 3.6 Flash paired with Sarvam <code>saaras:v3</code> (STT) and <code>bulbul:v3</code> (Hinglish TTS).</p>
           <div class="code-box">Google GenAI SDK • Sarvam AI SDK</div>
         </div>
 
@@ -626,7 +626,7 @@
     </div>
 
     <!-- ── SLIDE 4: Deterministic Financial Boundary ───────────────────────── -->
-    <div class="slide" data-slide="4" data-notes="The biggest technical challenge in AI-driven collections is hallucination. An LLM should NEVER have authority to decide payable balances or accept arbitrary dates. We enforce a strict separation of concerns: Gemini 2.5 Flash only returns a structured intent enum like REQUEST_DISCOUNT or PROMISE_TO_PAY. It passes this to our Python Policy Wrapper and Calculator, which calculates exact paise amounts, enforces merchant discount caps, and locks state transitions.">
+    <div class="slide" data-slide="4" data-notes="The biggest technical challenge in AI-driven collections is hallucination. An LLM should NEVER have authority to decide payable balances or accept arbitrary dates. We enforce a strict separation of concerns: Gemini 3.6 Flash only returns a structured intent enum like REQUEST_DISCOUNT or PROMISE_TO_PAY. It passes this to our Python Policy Wrapper and Calculator, which calculates exact paise amounts, enforces merchant discount caps, and locks state transitions.">
       <div class="slide-eyebrow">04 • Architecture & Guardrails</div>
       <h1 class="slide-title">The Strict <span class="highlight">Financial Authority Boundary</span></h1>
       <p class="slide-subtitle">Generative AI interprets speech; our deterministic Python state engine controls every rupee and state transition.</p>
@@ -635,7 +635,7 @@
         <div class="card" style="border-left: 4px solid var(--accent);">
           <div class="badge-pill badge-blue" style="margin-bottom: 10px;">Linguistic Intent Layer (LLM)</div>
           <div class="card-title">Non-Authoritative Intent Parser</div>
-          <p class="card-desc">Gemini 2.5 Flash parses code-mixed utterances into canonical structured intent schemas. It has <strong>zero knowledge of balances</strong> and cannot grant concessions.</p>
+          <p class="card-desc">Gemini 3.6 Flash parses code-mixed utterances into canonical structured intent schemas. It has <strong>zero knowledge of balances</strong> and cannot grant concessions.</p>
           <div class="code-box">
 {<br>
 &nbsp;&nbsp;"intent": "REQUEST_DISCOUNT",<br>
