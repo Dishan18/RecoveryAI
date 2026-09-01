@@ -3,24 +3,49 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>RecoveryAI — 5-Minute Pitch Deck | Razorpay Buildathon</title>
+  <title>RecoveryAI — Pitch Deck | Autonomous Debt Recovery Engine</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg-dark: #090a0f;
-      --bg-card: rgba(18, 20, 29, 0.75);
-      --bg-card-border: rgba(255, 255, 255, 0.08);
-      --accent-blue: #3b82f6;
-      --accent-cyan: #06b6d4;
-      --accent-indigo: #6366f1;
-      --accent-emerald: #10b981;
-      --accent-amber: #f59e0b;
-      --accent-rose: #f43f5e;
-      --text-main: #f8fafc;
-      --text-muted: #94a3b8;
-      --text-subtle: #64748b;
+      --bg-primary: #fbfbfb;
+      --bg-surface: #ffffff;
+      --bg-subtle: #f4f4f5;
+      --bg-card: #ffffff;
+      --border-color: #e4e4e7;
+      --border-subtle: #f0f0f2;
+      --text-main: #18181b;
+      --text-muted: #52525b;
+      --text-subtle: #71717a;
+      
+      --accent: #2563eb;
+      --accent-light: #eff6ff;
+      --accent-border: #bfdbfe;
+      
+      --success: #059669;
+      --success-light: #ecfdf5;
+      --success-border: #a7f3d0;
+      
+      --warning: #d97706;
+      --warning-light: #fffbeb;
+      --warning-border: #fde68a;
+      
+      --danger: #dc2626;
+      --danger-light: #fef2f2;
+      --danger-border: #fecaca;
+      
+      --indigo: #4f46e5;
+      --indigo-light: #eef2ff;
+      --indigo-border: #c7d2fe;
+      
+      --purple: #7c3aed;
+      --purple-light: #f5f3ff;
+      --purple-border: #ddd6fe;
+
+      --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+      --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
+      --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.06), 0 4px 6px -2px rgba(0, 0, 0, 0.03);
     }
 
     * {
@@ -30,8 +55,8 @@
     }
 
     body {
-      font-family: 'Inter', -apple-system, sans-serif;
-      background-color: var(--bg-dark);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background-color: var(--bg-primary);
       color: var(--text-main);
       overflow: hidden;
       height: 100vh;
@@ -39,34 +64,20 @@
       display: flex;
       flex-direction: column;
       user-select: none;
+      -webkit-font-smoothing: antialiased;
     }
-
-    /* ── Ambient Background Glow ─────────────────────────────────────────── */
-    .ambient-glow {
-      position: absolute;
-      width: 600px;
-      height: 600px;
-      border-radius: 50%;
-      filter: blur(140px);
-      opacity: 0.18;
-      pointer-events: none;
-      z-index: 0;
-      transition: all 0.8s ease;
-    }
-    #glow-1 { top: -100px; left: -100px; background: #3b82f6; }
-    #glow-2 { bottom: -100px; right: -100px; background: #6366f1; }
 
     /* ── Top Pitch HUD Header ───────────────────────────────────────────── */
     header.pitch-hud {
       position: relative;
-      z-index: 20;
+      z-index: 30;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 16px 36px;
-      background: rgba(9, 10, 15, 0.85);
-      backdrop-filter: blur(16px);
-      border-bottom: 1px solid var(--bg-card-border);
+      padding: 14px 36px;
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border-color);
+      box-shadow: var(--shadow-sm);
     }
 
     .brand-cluster {
@@ -77,30 +88,34 @@
 
     .brand-logo {
       font-family: 'Outfit', sans-serif;
-      font-size: 20px;
+      font-size: 19px;
       font-weight: 800;
       letter-spacing: -0.02em;
-      background: linear-gradient(135deg, #60a5fa, #a78bfa);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .brand-logo span.accent {
+      color: var(--accent);
     }
 
     .brand-tag {
       font-size: 11px;
       font-weight: 700;
-      letter-spacing: 0.05em;
+      letter-spacing: 0.04em;
       text-transform: uppercase;
       padding: 3px 8px;
-      border-radius: 6px;
-      background: rgba(59, 130, 246, 0.15);
-      color: #93c5fd;
-      border: 1px solid rgba(59, 130, 246, 0.3);
+      border-radius: 4px;
+      background: var(--accent-light);
+      color: var(--accent);
+      border: 1px solid var(--accent-border);
     }
 
     .pitch-controls {
       display: flex;
       align-items: center;
-      gap: 16px;
+      gap: 12px;
     }
 
     /* 5-Min Timer Badge */
@@ -109,36 +124,36 @@
       align-items: center;
       gap: 8px;
       font-family: 'JetBrains Mono', monospace;
-      font-size: 13px;
+      font-size: 12.5px;
       font-weight: 600;
-      padding: 6px 14px;
-      border-radius: 9999px;
-      background: rgba(16, 185, 129, 0.12);
-      color: #34d399;
-      border: 1px solid rgba(16, 185, 129, 0.3);
-      transition: all 0.3s ease;
+      padding: 5px 12px;
+      border-radius: 6px;
+      background: var(--success-light);
+      color: var(--success);
+      border: 1px solid var(--success-border);
+      transition: all 0.2s ease;
       cursor: pointer;
     }
     .timer-badge.warning {
-      background: rgba(245, 158, 11, 0.15);
-      color: #fbbf24;
-      border-color: rgba(245, 158, 11, 0.4);
+      background: var(--warning-light);
+      color: var(--warning);
+      border-color: var(--warning-border);
     }
     .timer-badge.danger {
-      background: rgba(244, 63, 94, 0.2);
-      color: #fb7185;
-      border-color: rgba(244, 63, 94, 0.5);
+      background: var(--danger-light);
+      color: var(--danger);
+      border-color: var(--danger-border);
       animation: pulse 1s infinite;
     }
 
     .btn-hud {
-      font-size: 12px;
+      font-size: 12.5px;
       font-weight: 600;
       padding: 6px 12px;
       border-radius: 6px;
-      background: rgba(255, 255, 255, 0.05);
+      background: var(--bg-surface);
       color: var(--text-muted);
-      border: 1px solid var(--bg-card-border);
+      border: 1px solid var(--border-color);
       cursor: pointer;
       transition: all 0.2s ease;
       display: flex;
@@ -146,13 +161,14 @@
       gap: 6px;
     }
     .btn-hud:hover {
-      background: rgba(255, 255, 255, 0.1);
+      background: var(--bg-subtle);
       color: var(--text-main);
+      border-color: #d4d4d8;
     }
     .btn-hud.active {
-      background: rgba(99, 102, 241, 0.2);
-      color: #a5b4fc;
-      border-color: rgba(99, 102, 241, 0.5);
+      background: var(--accent-light);
+      color: var(--accent);
+      border-color: var(--accent-border);
     }
 
     /* ── Slide Viewport Container ───────────────────────────────────────── */
@@ -165,16 +181,17 @@
       justify-content: center;
       z-index: 10;
       padding: 24px 48px;
+      background: var(--bg-primary);
     }
 
     .slide {
       position: absolute;
       width: 100%;
-      max-width: 1180px;
+      max-width: 1200px;
       opacity: 0;
-      transform: translateY(24px) scale(0.98);
+      transform: translateY(18px) scale(0.99);
       pointer-events: none;
-      transition: all 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+      transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
       display: flex;
       flex-direction: column;
       justify-content: center;
@@ -186,14 +203,14 @@
       pointer-events: auto;
     }
 
-    /* ── Slide Typography & Layouts ─────────────────────────────────────── */
+    /* ── Typography & Headers ───────────────────────────────────────────── */
     .slide-eyebrow {
       font-family: 'JetBrains Mono', monospace;
-      font-size: 12px;
+      font-size: 11.5px;
       font-weight: 700;
       text-transform: uppercase;
-      letter-spacing: 0.12em;
-      color: var(--accent-cyan);
+      letter-spacing: 0.08em;
+      color: var(--accent);
       margin-bottom: 8px;
       display: flex;
       align-items: center;
@@ -202,32 +219,36 @@
 
     h1.slide-title {
       font-family: 'Outfit', sans-serif;
-      font-size: 42px;
+      font-size: 38px;
       font-weight: 800;
       letter-spacing: -0.025em;
-      line-height: 1.15;
-      margin-bottom: 16px;
+      line-height: 1.18;
+      color: var(--text-main);
+      margin-bottom: 12px;
+    }
+    h1.slide-title span.highlight {
+      color: var(--accent);
     }
 
     p.slide-subtitle {
-      font-size: 18px;
+      font-size: 16px;
       color: var(--text-muted);
-      line-height: 1.5;
-      max-width: 900px;
-      margin-bottom: 32px;
+      line-height: 1.55;
+      max-width: 950px;
+      margin-bottom: 24px;
     }
 
-    /* ── Visual Grid Components ─────────────────────────────────────────── */
-    .grid-3 {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 20px;
-    }
-
+    /* ── Grid Layouts & Cards ───────────────────────────────────────────── */
     .grid-2 {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 24px;
+      gap: 20px;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 18px;
     }
 
     .grid-4 {
@@ -238,36 +259,42 @@
 
     .card {
       background: var(--bg-card);
-      border: 1px solid var(--bg-card-border);
-      border-radius: 14px;
-      padding: 24px;
-      backdrop-filter: blur(12px);
-      transition: all 0.3s ease;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: var(--shadow-sm);
+      transition: all 0.2s ease;
       position: relative;
-      overflow: hidden;
     }
-
     .card:hover {
-      border-color: rgba(255, 255, 255, 0.18);
+      border-color: #cbd5e1;
+      box-shadow: var(--shadow-md);
       transform: translateY(-2px);
     }
 
     .card-icon {
-      font-size: 28px;
-      margin-bottom: 14px;
-      display: inline-block;
+      font-size: 24px;
+      margin-bottom: 10px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 42px;
+      height: 42px;
+      border-radius: 6px;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-subtle);
     }
 
     .card-title {
       font-family: 'Outfit', sans-serif;
-      font-size: 18px;
+      font-size: 16px;
       font-weight: 700;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
       color: var(--text-main);
     }
 
     .card-desc {
-      font-size: 13.5px;
+      font-size: 13px;
       color: var(--text-muted);
       line-height: 1.55;
     }
@@ -276,53 +303,90 @@
       font-family: 'Outfit', sans-serif;
       font-size: 32px;
       font-weight: 800;
-      margin-bottom: 4px;
-      background: linear-gradient(135deg, #38bdf8, #818cf8);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
+      line-height: 1;
+      margin-bottom: 6px;
+      color: var(--accent);
     }
 
+    /* Badges & Pills */
     .badge-pill {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-      padding: 4px 10px;
-      border-radius: 9999px;
-      font-size: 11px;
+      gap: 5px;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 10.5px;
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.04em;
     }
-    .badge-emerald { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
-    .badge-blue { background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); }
-    .badge-amber { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
-    .badge-rose { background: rgba(244, 63, 94, 0.15); color: #fb7185; border: 1px solid rgba(244, 63, 94, 0.3); }
+    .badge-blue { background: var(--accent-light); color: var(--accent); border: 1px solid var(--accent-border); }
+    .badge-emerald { background: var(--success-light); color: var(--success); border: 1px solid var(--success-border); }
+    .badge-amber { background: var(--warning-light); color: var(--warning); border: 1px solid var(--warning-border); }
+    .badge-rose { background: var(--danger-light); color: var(--danger); border: 1px solid var(--danger-border); }
+    .badge-purple { background: var(--purple-light); color: var(--purple); border: 1px solid var(--purple-border); }
 
-    /* ── Pipeline Diagram Box ───────────────────────────────────────────── */
-    .flow-bar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      margin: 20px 0;
+    /* Code and Terminal Snippets */
+    .code-box {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11.5px;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 10px 12px;
+      color: var(--text-main);
+      margin-top: 10px;
+      line-height: 1.45;
     }
 
-    .flow-node {
-      flex: 1;
-      background: var(--bg-card);
-      border: 1px solid var(--bg-card-border);
-      border-radius: 12px;
-      padding: 16px;
-      text-align: center;
+    /* ── Pipeline Steps Diagram ─────────────────────────────────────────── */
+    .pipeline-container {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 4px;
+    }
+
+    .pipeline-row {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 12px;
       position: relative;
     }
-    .flow-node.highlight {
-      border-color: rgba(99, 102, 241, 0.6);
-      background: rgba(99, 102, 241, 0.1);
+
+    .pipeline-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 14px;
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      flex-direction: column;
+      position: relative;
     }
-    .flow-arrow {
-      color: var(--text-subtle);
-      font-size: 18px;
+    .pipeline-card.highlight {
+      border-color: var(--accent-border);
+      background: var(--accent-light);
+    }
+    .pipeline-num {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--accent);
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .pipeline-card h4 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-bottom: 4px;
+    }
+    .pipeline-card p {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      line-height: 1.4;
     }
 
     /* ── Speaker Notes Drawer ───────────────────────────────────────────── */
@@ -331,15 +395,15 @@
       bottom: 0;
       left: 0;
       right: 0;
-      background: rgba(15, 18, 28, 0.95);
-      backdrop-filter: blur(20px);
-      border-top: 1px solid rgba(99, 102, 241, 0.3);
-      padding: 18px 48px;
+      background: var(--bg-surface);
+      border-top: 1px solid var(--border-color);
+      box-shadow: var(--shadow-lg);
+      padding: 16px 40px;
       transform: translateY(100%);
-      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
       z-index: 100;
       display: flex;
-      gap: 32px;
+      gap: 24px;
       align-items: center;
     }
     .speaker-drawer.open {
@@ -350,43 +414,53 @@
       font-size: 11px;
       font-weight: 700;
       text-transform: uppercase;
-      color: #818cf8;
-      letter-spacing: 0.08em;
+      color: var(--accent);
+      letter-spacing: 0.06em;
       white-space: nowrap;
     }
     .speaker-content {
-      font-size: 14px;
+      font-size: 13.5px;
       line-height: 1.5;
-      color: #e2e8f0;
+      color: var(--text-main);
       flex: 1;
     }
 
     /* ── Bottom Deck Controls & Progress ───────────────────────────────── */
     footer.deck-footer {
       position: relative;
-      z-index: 20;
+      z-index: 30;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 14px 36px;
-      background: rgba(9, 10, 15, 0.85);
-      backdrop-filter: blur(16px);
-      border-top: 1px solid var(--bg-card-border);
+      padding: 12px 36px;
+      background: var(--bg-surface);
+      border-top: 1px solid var(--border-color);
+      box-shadow: 0 -1px 2px 0 rgba(0, 0, 0, 0.03);
+    }
+
+    .slide-indicator {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12.5px;
+      color: var(--text-muted);
+    }
+    .slide-indicator strong {
+      color: var(--text-main);
+      font-weight: 700;
     }
 
     .progress-track {
       flex: 1;
-      max-width: 400px;
+      max-width: 440px;
       height: 4px;
-      background: rgba(255, 255, 255, 0.08);
+      background: var(--border-color);
       border-radius: 9999px;
       overflow: hidden;
       margin: 0 24px;
     }
     .progress-fill {
       height: 100%;
-      background: linear-gradient(90deg, #38bdf8, #818cf8);
-      width: 16.66%;
+      background: var(--accent);
+      width: 14.28%;
       transition: width 0.3s ease;
     }
 
@@ -396,19 +470,28 @@
     }
 
     .btn-nav {
-      background: rgba(255, 255, 255, 0.06);
-      border: 1px solid var(--bg-card-border);
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
       color: var(--text-main);
       padding: 6px 14px;
       border-radius: 6px;
-      font-size: 13px;
+      font-size: 12.5px;
       font-weight: 600;
       cursor: pointer;
       transition: all 0.2s ease;
     }
     .btn-nav:hover {
-      background: rgba(255, 255, 255, 0.12);
-      border-color: rgba(255, 255, 255, 0.2);
+      background: var(--bg-subtle);
+      border-color: #cbd5e1;
+    }
+    .btn-nav.primary {
+      background: var(--accent);
+      color: #ffffff;
+      border-color: var(--accent);
+    }
+    .btn-nav.primary:hover {
+      background: #1d4ed8;
+      border-color: #1d4ed8;
     }
 
     @keyframes pulse {
@@ -419,14 +502,11 @@
 </head>
 <body>
 
-  <div class="ambient-glow" id="glow-1"></div>
-  <div class="ambient-glow" id="glow-2"></div>
-
   <!-- ── Pitch HUD Header ─────────────────────────────────────────────────── -->
   <header class="pitch-hud">
     <div class="brand-cluster">
-      <span class="brand-logo">RecoveryAI</span>
-      <span class="brand-tag">Razorpay Buildathon</span>
+      <span class="brand-logo">Recovery<span class="accent">AI</span></span>
+      <span class="brand-tag">System & Architecture Pitch Deck</span>
     </div>
 
     <div class="pitch-controls">
@@ -436,7 +516,7 @@
       </div>
 
       <button class="btn-hud" id="btn-notes" onclick="toggleNotes()">
-        <span>📝</span> Speaker Script (N)
+        <span>📝</span> Speaker Notes (N)
       </button>
 
       <button class="btn-hud" onclick="toggleFullscreen()">
@@ -448,162 +528,250 @@
   <!-- ── Slide Viewport ───────────────────────────────────────────────────── -->
   <main class="deck-viewport">
 
-    <!-- ── SLIDE 1: Title & The B2B Recovery Crisis ───────────────────────── -->
-    <div class="slide active" data-slide="1" data-notes="Good morning judges! I'm thrilled to present RecoveryAI. In India's digital economy, B2B SaaS and lenders lose ₹12,000+ Cr annually to failed recurring payments and overdue invoices. Today, businesses face a brutal dilemma: either send dumb automated emails that get ignored, or hire expensive, aggressive call centers that damage valuable customer relationships. RecoveryAI solves this autonomously.">
-      <div class="slide-eyebrow">🚀 Razorpay Buildathon 2026 • 5-Minute Pitch</div>
-      <h1 class="slide-title">Autonomous Voice & Multi-Rail<br><span style="background: linear-gradient(135deg, #38bdf8, #a855f7); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Debt Recovery Engine</span></h1>
-      <p class="slide-subtitle">Transforming high-friction B2B collections into empathetic, AI-powered multilingual voice negotiations governed by strict financial boundaries.</p>
+    <!-- ── SLIDE 1: The Problem ────────────────────────────────────────────── -->
+    <div class="slide active" data-slide="1" data-notes="Good day! In India's high-velocity digital economy, over ₹12,000 Crores of recurring B2B invoices and eMandates fail every year due to gateway timeouts, expired cards, or temporary cash flow crunches. Today, merchants face an impossible dilemma: automated email dunning has sub-10% recovery because it is easily ignored, while manual debt collection agencies charge 15-25% commissions, suffer 40% agent turnover, and risk brand reputation. RecoveryAI solves this autonomously.">
+      <div class="slide-eyebrow">01 • Problem Statement</div>
+      <h1 class="slide-title">The <span class="highlight">₹12,000+ Cr</span> Revenue Leakage in India's SaaS & FinTech</h1>
+      <p class="slide-subtitle">Failed recurring payments and overdue invoices create high churn and massive collection overheads for B2B merchants across India.</p>
 
       <div class="grid-3">
         <div class="card">
           <div class="card-icon">📉</div>
-          <div class="card-title">₹12,000+ Cr At Risk</div>
-          <p class="card-desc">Over 18% of monthly recurring eMandates and B2B invoices in India fail due to timeouts, expired cards, or temporary liquidity crunches.</p>
+          <div class="card-title">18% Involuntary Failure Rate</div>
+          <p class="card-desc">UPI eMandates, net banking mandates, and recurring card payments frequently fail due to technical timeouts, balance dips, and expired cards.</p>
+          <div class="code-box">Avg. B2B default cycle: 38 days overdue</div>
         </div>
+
+        <div class="card">
+          <div class="card-icon">✉️</div>
+          <div class="card-title">Static Dunning Is Ignored</div>
+          <p class="card-desc">Generic automated emails and templated SMS notifications yield &lt; 9% recovery. Debtors ignore passive channels during liquidity constraints.</p>
+          <div class="code-box">Click-through on dunning links: &lt; 4.2%</div>
+        </div>
+
         <div class="card">
           <div class="card-icon">📞</div>
-          <div class="card-title">Expensive Call Centers</div>
-          <p class="card-desc">Manual collection agencies charge 15–25% commissions, suffer 40% agent turnover, and often violate RBI fair-practice norms.</p>
+          <div class="card-title">Aggressive Call Centers Bleed Margins</div>
+          <p class="card-desc">Third-party collection agencies take 15–25% cuts, suffer severe agent churn, lack real-time ledger sync, and cause brand friction.</p>
+          <div class="code-box">OPEX cost per recovered dollar: 22%</div>
         </div>
+      </div>
+    </div>
+
+    <!-- ── SLIDE 2: The Solution ───────────────────────────────────────────── -->
+    <div class="slide" data-slide="2" data-notes="RecoveryAI is an autonomous voice and multi-rail debt recovery engine. It combines real-time conversational voice agents powered by Sarvam AI and Gemini 2.5 Flash with a strictly deterministic financial boundary. It diagnoses failed invoices, sends smart multi-rail links, and conducts natural multilingual negotiation calls in Hinglish, Hindi, and English to recover revenue empathetically without giving away unnecessary discounts.">
+      <div class="slide-eyebrow">02 • How We Solve It</div>
+      <h1 class="slide-title">Autonomous Voice & Multi-Rail <span class="highlight">Debt Recovery Engine</span></h1>
+      <p class="slide-subtitle">An intelligent credit officer that autonomously diagnoses, negotiates, and settles delinquent invoices with zero human intervention.</p>
+
+      <div class="grid-3">
         <div class="card">
-          <div class="card-icon">🛡️</div>
-          <div class="card-title">The RecoveryAI Answer</div>
-          <p class="card-desc">An autonomous, bounded AI credit officer that calls debtors in natural Hinglish, negotiates split plans, and settles invoices instantly.</p>
+          <div class="badge-pill badge-blue" style="margin-bottom: 10px;">Multilingual Voice AI</div>
+          <div class="card-title">Conversational Hinglish / Hindi Calls</div>
+          <p class="card-desc">Autonomous outbound calls with sub-second STT/TTS response, authentic Indian code-switching, and Devanagari transliteration handling.</p>
+          <div class="code-box">Powered by Sarvam AI (Saaras + Bulbul)</div>
+        </div>
+
+        <div class="card">
+          <div class="badge-pill badge-emerald" style="margin-bottom: 10px;">Deterministic Control</div>
+          <div class="card-title">Zero Financial Hallucination</div>
+          <p class="card-desc">Generative AI is strictly restricted to linguistic intent classification. All rupee amounts, concession tiers, and PTP deadlines are hard-coded in Python.</p>
+          <div class="code-box">13-State Deterministic FSM Architecture</div>
+        </div>
+
+        <div class="card">
+          <div class="badge-pill badge-purple" style="margin-bottom: 10px;">Margin Preservation</div>
+          <div class="card-title">Split Payment First Engine</div>
+          <p class="card-desc">Debtor refusals trigger a 50-50 Split Payment Plan (50% in 1 hour + 50% via 3-day PTP) on full gross amount before conceding any discounts.</p>
+          <div class="code-box">Anti-Gaming blocks repeat discount abusers</div>
         </div>
       </div>
     </div>
 
-    <!-- ── SLIDE 2: Core Architecture & Separation of Concerns ────────────── -->
-    <div class="slide" data-slide="2" data-notes="The biggest technical challenge in AI finance is LLM hallucination. If you let an LLM negotiate freely, it will invent 50% discounts or accept promises 6 months away. In RecoveryAI, we enforce a strict separation: Gemini 2.5 Flash only interprets language into structured intent schemas. It has ZERO authority over money. A deterministic Python State Machine and Policy Calculator computes every single rupee, discount tier, and 3-day deadline.">
-      <div class="slide-eyebrow">⚙️ Architecture • Financial Guardrails</div>
-      <h1 class="slide-title">The Financial Authority Boundary:<br><span style="background: linear-gradient(135deg, #34d399, #38bdf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Zero LLM Balance Hallucination</span></h1>
-      <p class="slide-subtitle">We separate natural language understanding from financial authority. The LLM only classifies speech; our deterministic engine controls the money.</p>
-
-      <div class="grid-2">
-        <div class="card" style="border-color: rgba(99, 102, 241, 0.4);">
-          <div class="badge-pill badge-blue" style="margin-bottom: 12px;">Cognitive Intelligence Layer</div>
-          <div class="card-title">Gemini 2.5 Flash + Sarvam AI</div>
-          <p class="card-desc" style="margin-bottom: 12px;">• <strong>Sarvam Saaras-v3:</strong> Sub-second Speech-to-Text for authentic Indian accents.<br>• <strong>Sarvam Bulbul-v3:</strong> Expressive Hinglish voice synthesis with <code>shubh</code> model.<br>• <strong>Gemini 2.5 Flash:</strong> Strictly non-authoritative intent extraction with 1.8s timeout cap.</p>
-          <div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #94a3b8; background: rgba(0,0,0,0.3); padding: 8px; border-radius: 6px;">Output: Strict Pydantic Intent Object (No math/balances)</div>
-        </div>
-
-        <div class="card" style="border-color: rgba(16, 185, 129, 0.4);">
-          <div class="badge-pill badge-emerald" style="margin-bottom: 12px;">Financial Execution Authority</div>
-          <div class="card-title">Deterministic Policy Engine & FSM</div>
-          <p class="card-desc" style="margin-bottom: 12px;">• <strong>13 Deterministic States:</strong> Immutable directional transition graph.<br>• <strong>Anti-Gaming Rules:</strong> Mathematical concession bounds (5% → 8% → 10%).<br>• <strong>RBI Compliance:</strong> Hard 3-day PTP policy cap & instant dispute freeze.</p>
-          <div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #94a3b8; background: rgba(0,0,0,0.3); padding: 8px; border-radius: 6px;">PostgreSQL Timestamps: Server-Authoritative Deadlines</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ── SLIDE 3: Margin-Preserving Split Engine ────────────────────────── -->
-    <div class="slide" data-slide="3" data-notes="Here is our secret sauce: margin preservation. When a customer says 'I cannot pay today', bad agents surrender a discount immediately. RecoveryAI does NOT. It first offers a Split Payment Plan: 50% in 1 hour, and 50% in 3 days on the FULL gross amount. If they ask for a discount on split, our policy firmly clarifies that discounts are strictly for one-time payments. Only if they refuse does it climb the capped discount ladder.">
-      <div class="slide-eyebrow">💰 Negotiation Logic • Margin Preservation</div>
-      <h1 class="slide-title">Split Payment & Concession Ladder:<br><span style="background: linear-gradient(135deg, #fbbf24, #f43f5e); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Preserving Merchant Margins First</span></h1>
-      <p class="slide-subtitle">Why surrender discounts when liquidity can be recovered in parts? Our engine maximizes cash collection before conceding a single rupee.</p>
+    <!-- ── SLIDE 3: Tech Stack Architecture ───────────────────────────────── -->
+    <div class="slide" data-slide="3" data-notes="Let's look at the tech stack. We chose a modern, high-concurrency async stack. The backend is built with FastAPI and Python 3.11, using SQLAlchemy 2.0 Async and asyncpg connected to PostgreSQL. The AI layer uses Gemini 2.5 Flash for non-authoritative Pydantic intent parsing, and Sarvam AI Saaras-v3 and Bulbul-v3 for Indian voice synthesis. The frontend is built on Next.js 16, React 19, and Tailwind CSS with real-time optimistic updates and audio streaming.">
+      <div class="slide-eyebrow">03 • Technology Stack</div>
+      <h1 class="slide-title">End-to-End <span class="highlight">Production Technology Stack</span></h1>
+      <p class="slide-subtitle">Engineered for sub-second latency, deterministic auditability, and enterprise-grade reliability.</p>
 
       <div class="grid-4">
         <div class="card">
-          <div class="badge-pill badge-blue" style="margin-bottom: 8px;">Step 1 • Margin Save</div>
-          <div class="card-title">Split Payment Plan</div>
-          <p class="card-desc">Offered on initial refusal. <strong>50% in 1 hour</strong> (live countdown) + <strong>50% in 3-day PTP</strong> on 100% gross.</p>
+          <div class="badge-pill badge-blue" style="margin-bottom: 8px;">Backend & API</div>
+          <div class="card-title">FastAPI & Python 3.11</div>
+          <p class="card-desc">High-throughput asynchronous ASGI engine with Pydantic v2 schemas, CORS middleware, and process time profiling headers.</p>
+          <div class="code-box">FastAPI 0.115 • Uvicorn • Pydantic v2</div>
+        </div>
+
+        <div class="card">
+          <div class="badge-pill badge-purple" style="margin-bottom: 8px;">AI & Voice Stack</div>
+          <div class="card-title">Gemini 2.5 + Sarvam AI</div>
+          <p class="card-desc">Structured intent extraction via Gemini 2.5 Flash paired with Sarvam <code>saaras:v3</code> (STT) and <code>bulbul:v3</code> (Hinglish TTS).</p>
+          <div class="code-box">Google GenAI SDK • Sarvam AI SDK</div>
+        </div>
+
+        <div class="card">
+          <div class="badge-pill badge-emerald" style="margin-bottom: 8px;">Persistence Layer</div>
+          <div class="card-title">PostgreSQL & Asyncpg</div>
+          <p class="card-desc">SQLAlchemy 2.0 Async ORM managing merchants, customers, invoices, and immutable timestamped <code>recovery_events</code> audit logs.</p>
+          <div class="code-box">PostgreSQL 15+ • asyncpg • Alembic</div>
+        </div>
+
+        <div class="card">
+          <div class="badge-pill badge-amber" style="margin-bottom: 8px;">Operations Frontend</div>
+          <div class="card-title">Next.js 16 + React 19</div>
+          <p class="card-desc">App Router dashboard featuring 0ms optimistic settlement, interactive voice modal, audio visualizer, and aging telemetry.</p>
+          <div class="code-box">Next.js 16 (Turbopack) • Tailwind v4</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SLIDE 4: Deterministic Financial Boundary ───────────────────────── -->
+    <div class="slide" data-slide="4" data-notes="The biggest technical challenge in AI-driven collections is hallucination. An LLM should NEVER have authority to decide payable balances or accept arbitrary dates. We enforce a strict separation of concerns: Gemini 2.5 Flash only returns a structured intent enum like REQUEST_DISCOUNT or PROMISE_TO_PAY. It passes this to our Python Policy Wrapper and Calculator, which calculates exact paise amounts, enforces merchant discount caps, and locks state transitions.">
+      <div class="slide-eyebrow">04 • Architecture & Guardrails</div>
+      <h1 class="slide-title">The Strict <span class="highlight">Financial Authority Boundary</span></h1>
+      <p class="slide-subtitle">Generative AI interprets speech; our deterministic Python state engine controls every rupee and state transition.</p>
+
+      <div class="grid-2">
+        <div class="card" style="border-left: 4px solid var(--accent);">
+          <div class="badge-pill badge-blue" style="margin-bottom: 10px;">Linguistic Intent Layer (LLM)</div>
+          <div class="card-title">Non-Authoritative Intent Parser</div>
+          <p class="card-desc">Gemini 2.5 Flash parses code-mixed utterances into canonical structured intent schemas. It has <strong>zero knowledge of balances</strong> and cannot grant concessions.</p>
+          <div class="code-box">
+{<br>
+&nbsp;&nbsp;"intent": "REQUEST_DISCOUNT",<br>
+&nbsp;&nbsp;"confidence": 0.96,<br>
+&nbsp;&nbsp;"customer_stated_discount_pct": 50.0<br>
+}
+          </div>
+        </div>
+
+        <div class="card" style="border-left: 4px solid var(--success);">
+          <div class="badge-pill badge-emerald" style="margin-bottom: 10px;">Deterministic Policy Engine (Python)</div>
+          <div class="card-title">Authoritative Math & FSM Executor</div>
+          <p class="card-desc">Python calculator overrides debtor demands: rejects 50% request, clamps to authorized 5% Tier 1 cap, sets exact ₹95,000 net payable, and appends audit row.</p>
+          <div class="code-box">
+Tier 1: 50% of 10% cap = 5.00% (₹5,000 savings)<br>
+Net Payable: ₹95,000.00 (Locked by Calculator)<br>
+FSM Transition: REMINDER_SENT → TIER_1_DISCOUNT
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SLIDE 5: Margin-Preserving Split Engine ────────────────────────── -->
+    <div class="slide" data-slide="5" data-notes="Our financial policy maximizes cash collection before conceding discounts. When a debtor refuses to pay, we don't jump to discounts. Instead, we offer a Split Payment Plan: 50% now within 1 hour, and 50% within 3 days on the full invoice amount. If the debtor demands a discount on the split plan, our policy firmly clarifies that discounts are strictly for one-time payments. Concessions follow a strict ladder: Tier 1 at 50% cap, Tier 2 at 80%, and Tier 3 at 100% Floor.">
+      <div class="slide-eyebrow">05 • Policy Mechanics</div>
+      <h1 class="slide-title">Margin-Preserving Split Engine & <span class="highlight">Concession Ladder</span></h1>
+      <p class="slide-subtitle">Maximizing collected cashflow while strictly bounding discounts under merchant-configured policy caps.</p>
+
+      <div class="grid-4">
+        <div class="card">
+          <div class="badge-pill badge-blue" style="margin-bottom: 8px;">Step 1 • Cash Split</div>
+          <div class="card-title">50-50 Split Offer</div>
+          <p class="card-desc">Offered on initial refusal. <strong>50% in 1 hour</strong> (live countdown) + <strong>50% in 3 days</strong> on 100% gross invoice.</p>
+          <div class="code-box">Preserves 100% merchant margin</div>
         </div>
 
         <div class="card">
           <div class="badge-pill badge-amber" style="margin-bottom: 8px;">Step 2 • Clarification</div>
           <div class="card-title">No Split on Discount</div>
-          <p class="card-desc">Clarifies firmly: <em>"Discounts are only for one-time payment. Would you like full split or one-time discount?"</em></p>
+          <p class="card-desc">Firm rule boundary: discounts are strictly reserved for one-time settlements. Clarifies options without compromising.</p>
+          <div class="code-box">Blocks compounding concessions</div>
         </div>
 
         <div class="card">
           <div class="badge-pill badge-emerald" style="margin-bottom: 8px;">Step 3 • Bounded Tiers</div>
-          <div class="card-title">5% → 8% → 10% Floor</div>
-          <p class="card-desc">Advances down authorized tiers for one-time settlement only. Blocked for habitual abusers (3+ mo).</p>
+          <div class="card-title">Tier 1 → Tier 2 → Tier 3</div>
+          <p class="card-desc">Ascends only on sequential refusals: Tier 1 (5%), Tier 2 (8%), Tier 3 Floor (10%). Blocked for repeat abusers (3+ mo).</p>
+          <div class="code-box">Hard Anti-Gaming cap enforcement</div>
         </div>
 
         <div class="card">
-          <div class="badge-pill badge-rose" style="margin-bottom: 8px;">Step 4 • Hard Limits</div>
-          <div class="card-title">Formal Escalation</div>
-          <p class="card-desc">If debtor persists after final Tier 3 offer or breaches 1-hr commitment, immediately routes to senior finance.</p>
+          <div class="badge-pill badge-rose" style="margin-bottom: 8px;">Step 4 • Escape Bounds</div>
+          <div class="card-title">Dispute & Escalation</div>
+          <p class="card-desc">Any billing dispute freezes dunning immediately. Final refusal or 1-hour breach routes to senior human credit officers.</p>
+          <div class="code-box">Immediate compliance & audit safety</div>
         </div>
       </div>
     </div>
 
-    <!-- ── SLIDE 4: Technical Rigor & Verification ────────────────────────── -->
-    <div class="slide" data-slide="4" data-notes="We built RecoveryAI with enterprise-grade engineering rigor. We have 63 automated conversational edge case tests and a 26-test voice regression suite with 100% pass rates. We solved subtle multilingual STT issues, like handling Devanagari transliterated English, word-boundary negation filters so words like 'now' don't trigger 'no', and 20-second autonomous polling workers with zero polling lag.">
-      <div class="slide-eyebrow">🔬 Technical Excellence • Verification</div>
-      <h1 class="slide-title">Enterprise Engineering Rigor:<br><span style="background: linear-gradient(135deg, #818cf8, #c084fc); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">63 Automated Edge-Case Tests</span></h1>
-      <p class="slide-subtitle">Tested against complex Indian code-switching, linguistic phonetic transliterations, and multi-turn negotiation paths.</p>
+    <!-- ── SLIDE 6: The Exact End-to-End Pipeline ──────────────────────────── -->
+    <div class="slide" data-slide="6" data-notes="Here is the exact lifecycle pipeline. Step 1: Failed invoice webhook enters TRIGGERED state. Step 2: System diagnoses root cause and dispatches smart payment links, entering REMINDER_SENT with a 10-minute timer. Step 3: Background scheduler detects timer expiry and triggers an outbound Sarvam AI voice negotiation call. Step 4: Voice agent negotiates split plan or bounded discount. Step 5: Webhook or manual settlement completes payment into RESOLVED with immutable audit logs.">
+      <div class="slide-eyebrow">06 • Execution Pipeline</div>
+      <h1 class="slide-title">The Exact <span class="highlight">5-Stage Recovery Pipeline</span></h1>
+      <p class="slide-subtitle">From automated webhook trigger to conversational voice negotiation, PTP tracking, and ledger settlement.</p>
 
-      <div class="grid-3">
-        <div class="card">
-          <div class="card-stat">63 / 63</div>
-          <div class="card-title">Edge Case Tests Passing</div>
-          <p class="card-desc">Tests multi-turn refusals, compound Hindi clauses, dispute freezes, 1-hour split timer countdowns, and 3-day PTP clamps.</p>
+      <div class="pipeline-container">
+        <div class="pipeline-row">
+          <div class="pipeline-card">
+            <div class="pipeline-num">Stage 01</div>
+            <h4>Ingestion & Diagnosis</h4>
+            <p>Invoice failure ingested via webhook or batch seed. Case initialized in <code>TRIGGERED</code> state and diagnosed for root cause (e.g. Mandate Decline).</p>
+          </div>
+
+          <div class="pipeline-card">
+            <div class="pipeline-num">Stage 02</div>
+            <h4>Autonomous Dunning</h4>
+            <p>Multi-channel WhatsApp/SMS payment link dispatched. State advances to <code>REMINDER_SENT</code> with a 10-minute autonomous countdown timer.</p>
+          </div>
+
+          <div class="pipeline-card highlight">
+            <div class="pipeline-num">Stage 03</div>
+            <h4>Outbound Voice Call</h4>
+            <p>Scheduler expires reminder timer and queues call. Sarvam STT transcribes Hinglish speech; Gemini extracts non-authoritative intent.</p>
+          </div>
+
+          <div class="pipeline-card">
+            <div class="pipeline-num">Stage 04</div>
+            <h4>Policy & Split Engine</h4>
+            <p>Deterministic calculator evaluates concession rules, enforces split plans (1-hr window), or binds authorized discount tiers (Tier 1 → 2 → 3).</p>
+          </div>
+
+          <div class="pipeline-card">
+            <div class="pipeline-num">Stage 05</div>
+            <h4>Settlement & Audit</h4>
+            <p>Customer pays via link or records 2-stage partial payment. Status updates to <code>RESOLVED</code> with full immutable audit logging.</p>
+          </div>
         </div>
 
-        <div class="card">
-          <div class="card-stat">&lt; 1.8s</div>
-          <div class="card-title">Voice Turn Latency</div>
-          <p class="card-desc">Optimized async thread offloading and in-memory TTS audio caching deliver natural conversational voice pacing.</p>
-        </div>
-
-        <div class="card">
-          <div class="card-stat">100%</div>
-          <div class="card-title">Spec & Policy Compliance</div>
-          <p class="card-desc">Automated regression runner ensures zero balance deviations, strict merchant cap enforcement, and immutable audit logs.</p>
+        <div class="card" style="margin-top: 6px; padding: 14px 20px;">
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span class="badge-pill badge-emerald">Autonomous Worker</span>
+              <span style="font-size: 12.5px; color: var(--text-muted);">Background Scheduler runs every <strong>20 seconds</strong>: monitors 10m reminder countdowns, 1h split deadlines, and 3-day PTP breaches.</span>
+            </div>
+            <div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--accent); font-weight: 700;">100% SERVER AUTHORITATIVE</div>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- ── SLIDE 5: The Operator Cockpit ──────────────────────────────────── -->
-    <div class="slide" data-slide="5" data-notes="Here is the live operations console. It features optimistic 0ms UI updates with our 2-stage payment button: click Half Payment to record 50%, turn the button yellow, update the Total Recovered metric, and schedule the 3-day PTP. When the second half arrives, click to turn green and resolve. We also have a global outbound call queue and executive macro analytics tracking recovery win rates across every failure category.">
-      <div class="slide-eyebrow">🖥️ Live Product • Operator Console</div>
-      <h1 class="slide-title">The Unified Operations Cockpit:<br><span style="background: linear-gradient(135deg, #38bdf8, #34d399); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Real-Time Control & Telemetry</span></h1>
-      <p class="slide-subtitle">A high-velocity Next.js 16 console with 2-stage partial payment accounting, live countdowns, and instant voice triggers.</p>
+    <!-- ── SLIDE 7: Business Impact & Operations Console ──────────────────── -->
+    <div class="slide" data-slide="7" data-notes="In conclusion, RecoveryAI delivers 3.8x higher recovery win rates compared to passive email dunning, while slashing OPEX by 85%. Operators get full real-time telemetry, 2-stage partial payment accounting (yellow for half paid, green for resolved), instant call replay, and dispute handling. RecoveryAI turns involuntary revenue churn into cash collected with speed and empathy. Thank you!">
+      <div class="slide-eyebrow">07 • ROI & Operator Cockpit</div>
+      <h1 class="slide-title">Business Impact & <span class="highlight">Real-Time Control</span></h1>
+      <p class="slide-subtitle">Delivering high-velocity revenue recovery while giving finance teams total operational transparency.</p>
 
       <div class="grid-3">
         <div class="card">
-          <div class="card-icon">⚡</div>
-          <div class="card-title">2-Stage Payment Engine</div>
-          <p class="card-desc">Record 50% partial payment $\rightarrow$ turns yellow (<code>Half Paid</code>) $\rightarrow$ records 50% remaining $\rightarrow$ turns green (<code>Resolved</code>).</p>
-        </div>
-        <div class="card">
-          <div class="card-icon">📊</div>
-          <div class="card-title">Real-Time Telemetry</div>
-          <p class="card-desc">Instant aggregation of Total Recovered, Volume at Risk, and Anti-Gaming Margin Preserved across active portfolios.</p>
-        </div>
-        <div class="card">
-          <div class="card-icon">🎧</div>
-          <div class="card-title">Voice Audit & Replay</div>
-          <p class="card-desc">Listen to full high-fidelity call recordings and inspect turn-by-turn state transition decisions in real-time.</p>
-        </div>
-      </div>
-    </div>
-
-    <!-- ── SLIDE 6: Business Impact & The Razorpay Vision ──────────────────── -->
-    <div class="slide" data-slide="6" data-notes="To wrap up: RecoveryAI delivers a 3.8x recovery rate improvement over static email dunning and slashes collection agency costs by 85%. For Razorpay, RecoveryAI is the natural next-generation intelligence layer for Razorpay Subscriptions, Payment Links, and Smart Collect. We turn involuntary churn into immediate settled revenue. Thank you, and we're ready for your questions!">
-      <div class="slide-eyebrow">🌟 Business Impact • The Razorpay Synergy</div>
-      <h1 class="slide-title">The Future of Autonomous Recovery:<br><span style="background: linear-gradient(135deg, #38bdf8, #818cf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Plug-and-Play with Razorpay</span></h1>
-      <p class="slide-subtitle">Turning failed transactions into retained revenue and long-term customer goodwill.</p>
-
-      <div class="grid-3">
-        <div class="card" style="border-color: rgba(56, 189, 248, 0.4);">
           <div class="card-stat">3.8x</div>
           <div class="card-title">Recovery Win-Rate</div>
-          <p class="card-desc">Outperforms traditional email/SMS dunning via empathetic conversational voice intervention.</p>
+          <p class="card-desc">Empathetic voice negotiations and proactive split payment options dramatically outperform passive emails and SMS blasts.</p>
+          <div class="code-box">Avg. resolution time: &lt; 24 hours</div>
         </div>
 
-        <div class="card" style="border-color: rgba(16, 185, 129, 0.4);">
+        <div class="card">
           <div class="card-stat">85%</div>
-          <div class="card-title">OPEX Reduction</div>
-          <p class="card-desc">Eliminates manual call-center overhead and agency commissions through autonomous execution.</p>
+          <div class="card-title">OPEX Cost Reduction</div>
+          <p class="card-desc">Eliminates agency commissions and manual calling teams through autonomous 24/7 outbound voice execution.</p>
+          <div class="code-box">Zero agency commissions & overhead</div>
         </div>
 
-        <div class="card" style="border-color: rgba(99, 102, 241, 0.4);">
-          <div class="card-stat">Native</div>
-          <div class="card-title">Razorpay Ecosystem Fit</div>
-          <p class="card-desc">Direct drop-in for Razorpay Subscriptions, eMandates, Payment Links, and Invoices.</p>
+        <div class="card">
+          <div class="card-stat">0ms</div>
+          <div class="card-title">Optimistic Operator HUD</div>
+          <p class="card-desc">2-stage partial payment accounting (50% Half Paid $\rightarrow$ 100% Resolved), live countdown timers, and full voice audit replays.</p>
+          <div class="code-box">Next.js 16 • React 19 • Instant Sync</div>
         </div>
       </div>
     </div>
@@ -612,16 +780,16 @@
 
   <!-- ── Speaker Notes Drawer ─────────────────────────────────────────────── -->
   <div class="speaker-drawer" id="speaker-drawer">
-    <div class="speaker-label">🎤 5-Min Pitch Script:</div>
+    <div class="speaker-label">🎤 Speaker Notes:</div>
     <div class="speaker-content" id="speaker-text">
-      Loading speaker notes...
+      Loading notes...
     </div>
   </div>
 
   <!-- ── Deck Navigation Footer ───────────────────────────────────────────── -->
   <footer class="deck-footer">
-    <div style="display: flex; align-items: center; gap: 12px;">
-      <span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--text-muted);">Slide <span id="current-slide-num" style="color: var(--text-main); font-weight: 700;">1</span> / <span id="total-slides-num">6</span></span>
+    <div class="slide-indicator">
+      Slide <strong id="current-slide-num">1</strong> of <span id="total-slides-num">7</span>
     </div>
 
     <div class="progress-track">
@@ -630,7 +798,7 @@
 
     <div class="nav-buttons">
       <button class="btn-nav" onclick="prevSlide()">◀ Previous</button>
-      <button class="btn-nav" onclick="nextSlide()" style="background: rgba(99, 102, 241, 0.3); border-color: rgba(99, 102, 241, 0.6); color: #fff;">Next ▶</button>
+      <button class="btn-nav primary" onclick="nextSlide()">Next ▶</button>
     </div>
   </footer>
 
@@ -682,7 +850,7 @@
         toggleNotes();
       } else if (e.key.toLowerCase() === 'f') {
         toggleFullscreen();
-      } else if (e.key >= '1' && e.key <= '6') {
+      } else if (e.key >= '1' && e.key <= '7') {
         showSlide(parseInt(e.key));
       }
     });
